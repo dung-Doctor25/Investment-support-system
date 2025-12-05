@@ -1,0 +1,128 @@
+{% extends 'main.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>📈 Nhập dữ liệu Thị trường chứng khoán</h2>
+
+  <form id="thiTruongForm">
+    <div class="mb-3">
+      <label for="congTy" class="form-label">Công ty</label>
+      <select class="form-select" id="congTy" name="congTy" required>
+        <option value="">-- Chọn công ty --</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="ngay" class="form-label">Ngày giao dịch</label>
+      <input type="date" class="form-control" id="ngay" name="ngay" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="giaDongCua" class="form-label">Giá đóng cửa (nghìn VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="giaDongCua" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="giaDieuChinh" class="form-label">Giá điều chỉnh (nghìn VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="giaDieuChinh" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="thayDoi" class="form-label">Thay đổi giá (+/-)</label>
+      <input type="number" step="0.01" class="form-control" id="thayDoi" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="klKhopLenh" class="form-label">KL khớp lệnh</label>
+      <input type="number" class="form-control" id="klKhopLenh" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="gtKhopLenh" class="form-label">GT khớp lệnh (tỷ VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="gtKhopLenh" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="klThoaThuan" class="form-label">KL thỏa thuận</label>
+      <input type="number" class="form-control" id="klThoaThuan">
+    </div>
+
+    <div class="mb-3">
+      <label for="gtThoaThuan" class="form-label">GT thỏa thuận (tỷ VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="gtThoaThuan">
+    </div>
+
+    <div class="mb-3">
+      <label for="giaMoCua" class="form-label">Giá mở cửa (nghìn VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="giaMoCua" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="giaCaoNhat" class="form-label">Giá cao nhất (nghìn VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="giaCaoNhat" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="giaThapNhat" class="form-label">Giá thấp nhất (nghìn VNĐ)</label>
+      <input type="number" step="0.01" class="form-control" id="giaThapNhat" required>
+    </div>
+
+    <button type="submit" class="btn btn-success">Gửi dữ liệu</button>
+  </form>
+
+  <div id="result" class="mt-3"></div>
+</div>
+
+<script>
+  // 🧭 Load danh sách công ty khi trang mở
+  async function loadCongTy() {
+    const res = await fetch("/api/get_congty_data/");
+    const companies = await res.json();
+    const select = document.getElementById("congTy");
+
+    companies.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.maChungKhoan;  // vì ForeignKey to_field='maChungKhoan'
+      option.textContent = `${c.tenCongTy} (${c.maChungKhoan})`;
+      select.appendChild(option);
+    });
+  }
+
+  loadCongTy();
+
+  // 📨 Submit form
+  document.getElementById("thiTruongForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const formData = {
+      congTy: document.getElementById("congTy").value,
+      ngay: document.getElementById("ngay").value,
+      giaDongCua: document.getElementById("giaDongCua").value,
+      giaDieuChinh: document.getElementById("giaDieuChinh").value,
+      thayDoi: document.getElementById("thayDoi").value,
+      klKhopLenh: document.getElementById("klKhopLenh").value,
+      gtKhopLenh: document.getElementById("gtKhopLenh").value,
+      klThoaThuan: document.getElementById("klThoaThuan").value || null,
+      gtThoaThuan: document.getElementById("gtThoaThuan").value || null,
+      giaMoCua: document.getElementById("giaMoCua").value,
+      giaCaoNhat: document.getElementById("giaCaoNhat").value,
+      giaThapNhat: document.getElementById("giaThapNhat").value,
+    };
+
+    const response = await fetch("/api/post_thitruong_data/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify(formData),
+    });
+
+    const data = await response.json();
+    document.getElementById("result").innerHTML =
+      `<div class="alert alert-${response.ok ? 'success' : 'danger'}">${data.message}</div>`;
+  });
+
+  // 🛡️ Hàm lấy CSRF token
+
+</script>
+{% endblock %}

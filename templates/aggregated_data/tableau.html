@@ -1,0 +1,70 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block content %}
+
+<div class="container-fluid mt-4 mb-5">
+    
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3 class="text-primary fw-bold">
+                Dashboard Phân Tích 
+            </h3>
+        </div>
+    </div>
+
+    <div class="card shadow-lg border-0">
+        <div class="card-body p-0"> <div class="table-responsive" style="overflow-x: auto;">
+                
+                <div class='tableauPlaceholder' id='viz_cap2_dashboard' style='position: relative'>
+                    <noscript>
+                        <a href='#'>
+                            <img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard&#47;Dashboard1&#47;1_rss.png' style='border: none' />
+                        </a>
+                    </noscript>
+                    <object class='tableauViz' style='display:none;'>
+                        <param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> 
+                        <param name='embed_code_version' value='3' /> 
+                        <param name='site_root' value='' />
+                        
+                        <param name='name' value='Cap2Dashboard&#47;Dashboard1' />
+                        
+                        <param name='tabs' value='yes' />
+                        
+                        <param name='toolbar' value='yes' />
+                        <param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard&#47;Dashboard1&#47;1.png' /> 
+                        <param name='animate_transition' value='yes' />
+                        <param name='display_static_image' value='yes' />
+                        <param name='display_spinner' value='yes' />
+                        <param name='display_overlay' value='yes' />
+                        <param name='display_count' value='yes' />
+                        <param name='language' value='en-US' />
+                    </object>
+                </div>
+                
+                <script type='text/javascript'>
+                    var divElement = document.getElementById('viz_cap2_dashboard');
+                    var vizElement = divElement.getElementsByTagName('object')[0];
+                    
+                    // Logic tự động chỉnh kích thước (Responsive)
+                    if ( divElement.offsetWidth > 800 ) {
+                        vizElement.style.width='100%';
+                        vizElement.style.height='850px'; // Chiều cao mặc định cho màn hình lớn
+                    } else if ( divElement.offsetWidth > 500 ) {
+                        vizElement.style.width='100%';
+                        vizElement.style.height='850px';
+                    } else {
+                        vizElement.style.width='100%';
+                        vizElement.style.height='1200px'; // Cao hơn trên mobile để hiển thị dọc
+                    }
+                    
+                    var scriptElement = document.createElement('script');
+                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';
+                    vizElement.parentNode.insertBefore(scriptElement, vizElement);
+                </script>
+                </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

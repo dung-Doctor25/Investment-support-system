@@ -1,0 +1,192 @@
+:root {
+    --bg-color: #f0f2f5;
+    --card-bg: #ffffff;
+    --text-color: #333;
+    --header-filter-bg: #000928;
+    --border-color: #e0e0e0;
+    
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 90vh; /* Cố định chiều cao view */
+    overflow: hidden; /* Ẩn scroll body nếu muốn dashboard cố định */
+}
+
+.container {
+    max-width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    margin-top: 10px;
+}
+
+/* --- Header Styles --- */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    flex-shrink: 0; /* Không cho header co lại */
+}
+
+.header-left h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-color);
+    text-transform: uppercase;
+}
+
+.header-left p {
+    color: #666;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+.header-right {
+    display: flex;
+    gap: 15px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--header-filter-bg);
+    border-radius: 5px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ffffff;
+    background-color: var(--header-filter-bg);
+    padding: 2px 8px;
+    border-radius: 3px 3px 0 0;
+    width: fit-content;
+    margin: 0 auto;
+}
+
+.dark-select {
+    background-color: var(--header-filter-bg);
+    color: white;
+    border: 1px solid #444;
+    padding: 5px 10px;
+    border-radius: 4px;
+    width: 160px;
+    font-size: 14px;
+    outline: none;
+}
+
+/* --- Dashboard Grid Layout --- */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr 1fr; 
+    gap: 15px;
+    flex-grow: 1; /* Chiếm phần còn lại của chiều cao */
+    min-height: 0; /* Quan trọng để scroll nội dung bên trong nếu cần */
+}
+
+/* --- Common Card Styles --- */
+.card {
+    background-color: var(--card-bg);
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+.card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    color: #444;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+/* Class chung cho vùng chứa chart */
+.chart-container {
+    width: 100%;
+    flex-grow: 1; /* Tự động lấp đầy chiều cao còn lại của card */
+    position: relative;
+    /* background-color: #fafafa; Bật dòng này nếu muốn thấy vùng chart rõ hơn */
+}
+
+/* --- KPI Column (Left) --- */
+.column-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    height: 100%;
+}
+
+.kpi-card {
+    flex: 1; /* Chia đều chiều cao 4 thẻ */
+    background-color: #dbe4ea; /* Màu nền đặc trưng của cột trái */
+}
+
+/* --- Middle & Right Columns --- */
+.column-middle, .column-right {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    height: 100%;
+}
+
+.chart-card {
+    flex: 1; /* Chia đều chiều cao 2 biểu đồ trong cột */
+    padding: 15px;
+}
+
+/* --- Legend (Chú thích) --- */
+
+
+.sq { border-radius: 0; }
+.dot { border-radius: 50%; }
+
+
+/* --- Responsive --- */
+@media (max-width: 1200px) {
+    body { overflow: auto; height: auto; } /* Cho phép scroll trên màn hình nhỏ */
+    .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+        height: auto;
+    }
+    .column-kpi {
+        grid-column: span 2;
+        flex-direction: row;
+        height: 180px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .column-kpi {
+        flex-direction: column;
+        height: auto;
+    }
+    .kpi-card { height: 150px; }
+    .chart-card { height: 300px; }
+    
+    .header { flex-direction: column; }
+    .header-right { width: 100%; justify-content: space-between; margin-top: 10px; }
+}

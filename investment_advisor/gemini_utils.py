@@ -1,0 +1,373 @@
+import re
+import google.genai as genai
+import os
+import gspread
+import numpy as np
+import json
+
+from django.db.models import Max, Count
+from .models import CongTy, TongHopTaiChinh, BangCanDoiKeToan, BangKetQuaKinhDoanh, ThiTruongChungKhoang
+
+def safe_divide(a, b):
+    if b is None or b == 0: return 0
+    return a / b
+
+def get_financial_ratios_data():
+    """
+    Tính toán và trả về dictionary dữ liệu chỉ số tài chính đầy đủ.
+    """
+    # 1. Xác định năm dữ liệu
+    latest_report = (
+        TongHopTaiChinh.objects
+        .exclude(congTy__maChungKhoan__in=["SCS",'a'])
+        .aggregate(max_nam=Max('nam'))
+    )
+    latest_year = latest_report.get('max_nam')
+
+    if not latest_year:
+        return None
+
+    start_calc_year = latest_year - 4
+    start_data_year = latest_year - 5 
+    
+    years_to_query = list(range(start_data_year, latest_year + 1))
+    years_to_calculate = list(range(start_calc_year, latest_year + 1))
+
+    # 2. Đếm số năm thu thập
+    company_years_count = (
+        BangCanDoiKeToan.objects
+        .values('baoCao__congTy__maChungKhoan')
+        .annotate(total_years=Count('baoCao__nam', distinct=True))
+    )
+    years_count_map = {item['baoCao__congTy__maChungKhoan']: item['total_years'] for item in company_years_count}
+
+    all_companies = CongTy.objects.all()
+    results = {}
+
+    # 3. Lặp qua từng công ty
+    for company in all_companies:
+        if company.maChungKhoan in ['a']:
+            continue
+        
+        company_code = company.maChungKhoan
+        total_collected_years = years_count_map.get(company_code, 0)
+
+        results[company_code] = {
+            "tenCongTy": company.tenCongTy,
+            "TongSoNamThuThap": total_collected_years,
+            "annual_reports": {}
+        }
+        
+        # Lấy dữ liệu BCTC
+        reports = TongHopTaiChinh.objects.filter(
+            congTy=company,
+            nam__in=years_to_query,
+            quy__in=[0, 5]
+        ).select_related('bangcandoiketoan', 'bangketquakinhdoanh').order_by('nam')
+
+        processed_data = {}
+        for report in reports:
+            try:
+                bcdt = report.bangcandoiketoan  
+                kqkd = report.bangketquakinhdoanh
+                processed_data[report.nam] = {
+                    "LoiNhuanSauThue": kqkd.loiNhuanSauThueThuNhapDoanhNghiep,
+                    "TongTaiSan": bcdt.tongCongTaiSan,
+                    "VonChuSoHuu": bcdt.vonChuSoHuu, 
+                    "TaiSanNganHan": bcdt.taiSanNganHan,
+                    "NoNganHan": bcdt.noNganHan,
+                    "NoPhaiTra": bcdt.noPhaiTra,
+                    "VonGop": bcdt.vonGopCuaChuSoHuu,
+                    "NoDaiHan": bcdt.noDaiHan
+                }
+            except (BangCanDoiKeToan.DoesNotExist, BangKetQuaKinhDoanh.DoesNotExist, AttributeError):
+                continue
+
+        # Tính toán chỉ số cho từng năm
+        for year in years_to_calculate:
+            data_N = processed_data.get(year)
+            data_N_minus_1 = processed_data.get(year - 1)
+            
+            if not data_N or not data_N_minus_1:
+                # results[company_code]["annual_reports"][year] = "Không đủ dữ liệu" # Tùy chọn giữ lại dòng này
+                continue
+
+            # --- Dữ liệu Tài chính ---
+            LNST_N = data_N["LoiNhuanSauThue"]
+            TTS_N = data_N["TongTaiSan"]
+            VCSH_N = data_N["VonChuSoHuu"]
+            TSNH_N = data_N["TaiSanNganHan"]
+            NNH_N = data_N["NoNganHan"]
+            NPT_N = data_N["NoPhaiTra"]
+            VonGop_N = data_N["VonGop"]
+            NDH_N = data_N["NoDaiHan"]
+
+            # Dữ liệu N-1
+            LNST_N_1 = data_N_minus_1["LoiNhuanSauThue"]
+            TTS_N_1 = data_N_minus_1["TongTaiSan"]
+            VCSH_N_1 = data_N_minus_1["VonChuSoHuu"]
+
+            # --- LẤY DỮ LIỆU THỊ TRƯỜNG ---
+            market_data = ThiTruongChungKhoang.objects.filter(
+                congTy=company, 
+                ngay__year=year
+            ).order_by('-ngay').first()
+            
+            market_price = float(market_data.giaDongCua) * 1000 if market_data and market_data.giaDongCua else (float(market_data.giaDieuChinh) * 1000 if market_data and market_data.giaDieuChinh else 0)
+
+            # --- TÍNH TOÁN ---
+            avg_TTS = safe_divide(TTS_N + TTS_N_1, 2)
+            avg_VCSH = safe_divide(VCSH_N + VCSH_N_1, 2)
+
+            roa = safe_divide(LNST_N, avg_TTS)
+            roe = safe_divide(LNST_N, avg_VCSH)
+            current_ratio = safe_divide(TSNH_N, NNH_N)
+            debt_to_assets = safe_divide(NPT_N, TTS_N)
+            asset_growth = safe_divide(TTS_N - TTS_N_1, TTS_N_1)
+            profit_growth = safe_divide(LNST_N - LNST_N_1, LNST_N_1)
+
+            tong_von_hoa = (NDH_N if NDH_N else 0) + (VCSH_N if VCSH_N else 0)
+            long_term_debt_ratio = safe_divide(NDH_N, tong_von_hoa)
+            
+            num_shares = safe_divide(VonGop_N, 10000)
+            eps = safe_divide(LNST_N, num_shares)
+
+            pe = safe_divide(market_price, eps) if eps and eps > 0 else 0
+            
+            bvps = safe_divide(VCSH_N, num_shares)
+            pb = safe_divide(market_price, bvps)
+            beta = 0 
+
+            # Lưu vào results
+            results[company_code]["annual_reports"][year] = {
+                "ROA": roa,
+                "ROE": roe,
+                "TySuatThanhToanHienHanh": current_ratio,
+                "HeSoNoTrenTongTaiSan": debt_to_assets,
+                "TangTruongTaiSan": asset_growth,
+                "TangTruongLoiNhuan": profit_growth,
+                "EPS": eps,
+                "PE": pe,
+                "PB": pb,
+                "Beta": beta, 
+                "GiaDongCuaCuoiNam": market_price,
+                "TyLeNoDaiHan": long_term_debt_ratio
+            }
+            
+    return results
+
+
+try:
+    api_key=os.environ["GEMINI_API_KEY"]
+except KeyError:
+    print("Vui lòng đặt GEMINI_API_KEY trong biến môi trường của bạn.")
+    # Hoặc đặt cứng ở đây (không khuyến khích):
+    api_key = 'AIzaSyC0b2RVCyf_s176dBoo6ksmt_XsJ_XoXV4'
+
+
+client = genai.Client(api_key=api_key)
+
+def call_gemini(user_question: str) -> str:
+    """
+    Hàm xử lý logic gọi Gemini với vai trò Chuyên gia tài chính.
+    """
+    if not user_question.strip():
+        return "Vui lòng nhập nội dung câu hỏi."
+
+    # 1. Lấy dữ liệu tài chính mới nhất
+    # Lưu ý: Hàm này có thể chạy hơi lâu nếu DB lớn. 
+    # Trong thực tế nên cache lại kết quả này nếu dữ liệu không thay đổi liên tục.
+    raw_data = get_financial_ratios_data()
+    # raw_data=2
+    # 2. Chuyển đổi dữ liệu sang chuỗi JSON để nạp vào prompt
+    if raw_data:
+        # ensure_ascii=False để giữ tiếng Việt, indent=2 cho dễ nhìn (nếu debug)
+        data_context = json.dumps(raw_data, ensure_ascii=False, indent=2)
+    else:
+        data_context = "Hiện tại chưa có dữ liệu báo cáo tài chính trong hệ thống."
+
+    # 3. Xây dựng Prompt Template (Kỹ thuật Prompt Engineering)
+    # Đây là phần quan trọng nhất để định hình tính cách Bot
+    prompt_template = f"""
+    VAI TRÒ:
+    Bạn là một Chuyên gia Tư vấn Đầu tư Tài chính cấp cao. Nhiệm vụ của bạn là hỗ trợ khách hàng phân tích sức khỏe doanh nghiệp và đưa ra lời khuyên đầu tư dựa trên dữ liệu thực tế.
+
+    DỮ LIỆU CUNG CẤP (Context):
+    Dưới đây là dữ liệu các chỉ số tài chính (ROA, ROE, PE, EPS, Tăng trưởng, Nợ...) của các công ty trong 5 năm gần nhất:
+    ```json
+    {data_context}
+    ```
+
+    CÂU HỎI CỦA KHÁCH HÀNG:
+    "{user_question}"
+
+    YÊU CẦU XỬ LÝ:
+    Bước 1: Phân loại câu hỏi.
+    - Kiểm tra xem câu hỏi của khách hàng có liên quan đến: Tài chính, Đầu tư, Chứng khoán, Kinh tế, hoặc hỏi về các Công ty trong dữ liệu cung cấp hay không.
+    
+    Bước 2: Phản hồi.
+    - TRƯỜNG HỢP 1 (Không liên quan): Nếu câu hỏi hoàn toàn không liên quan đến các chủ đề trên (ví dụ: hỏi về thời tiết, tình cảm, chính trị, code, nấu ăn...), hãy trả lời DUY NHẤT một câu sau:
+      "Bạn vui lòng hỏi về tài chính, cảm ơn bạn nhé."
+    
+    - TRƯỜNG HỢP 2 (Có liên quan): 
+      + Hãy phân tích câu hỏi dựa trên dữ liệu JSON được cung cấp ở trên.
+      + Đưa ra các "Insight" (nhận định sâu sắc): Ví dụ thấy ROE giảm dần thì cảnh báo, thấy Tăng trưởng lợi nhuận cao thì khen ngợi.
+      + Sử dụng các con số cụ thể từ dữ liệu để dẫn chứng cho lời khuyên (Ví dụ: "Năm 2023 PE chỉ còn 10.5, thấp hơn trung bình...").
+      + Giọng văn: Chuyên nghiệp, khách quan, sắc sảo nhưng thân thiện và hữu ích.
+    """
+
+    print(f"Đang gọi Gemini với câu hỏi: '{user_question[:30]}...'")
+    
+    try:
+        # Gọi Gemini
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", # Hoặc gemini-1.5-flash tùy version bạn có
+            contents=prompt_template,
+        )
+        return response.text
+    except Exception as e:
+        print(f"Lỗi khi gọi Gemini: {e}")
+        return "Xin lỗi, hệ thống phân tích đang gặp sự cố kết nối. Vui lòng thử lại sau."
+    
+
+
+# --- HÀM MỚI ĐỂ ĐẨY DỮ LIỆU LÊN GOOGLE SHEET ---
+
+def format_number(value, is_percent=True):
+    """
+    Hàm helper để xử lý giá trị trước khi chèn.
+    Google Sheet nên được định dạng là "Number" hoặc "Percent"
+    để xử lý số, không nên đẩy chuỗi '%'.
+    """
+    if isinstance(value, (int, float)):
+        return value  # Gửi số trực tiếp
+    return None # Nếu là "Không đủ dữ liệu" hoặc lỗi
+
+def update_financial_ratios_sheet(data_dict):
+    """
+    Kết nối Google Sheets và cập nhật với dữ liệu từ view.
+    
+    :param data_dict: Đây chính là biến 'results' từ view của bạn.
+    """
+    
+    # 1. Xác thực
+    # Đảm bảo file service_account.json nằm ở đúng đường dẫn
+    gc = gspread.service_account(filename='credentials.json')
+
+    # 2. Mở Sheet bằng tên
+    # Đảm bảo tên này khớp chính xác với Google Sheet của bạn
+    sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1aY8IoFpUQ51LJd0_xVGsQp1d8dZonn3eNTVceebFJu8/edit?usp=sharing") 
+    
+    # Chọn worksheet (trang tính) đầu tiên
+    worksheet = sh.get_worksheet(0)
+    
+    print("Đã kết nối Google Sheet thành công.", flush=True)
+
+    # 3. Chuẩn bị dữ liệu (Chuyển đổi Dict lồng nhau thành danh sách phẳng)
+    rows_to_insert = []
+    
+    # Tạo hàng tiêu đề
+    header = [
+        "Mã CK", "Tên Công Ty", "Năm", "ROA", "ROE", 
+        "Tỷ Suất TT Hiện Hành", "Nợ/Tổng Tài Sản", 
+        "Tăng Trưởng Tài Sản", "Tăng Trưởng Lợi Nhuận",
+        "EPS", "PE", "PB", "Beta", "Giá đóng cửa cuối năm", "Tỷ lệ Nợ Dài Hạn" # Lưu thêm để kiểm tra
+    ]
+    rows_to_insert.append(header)
+
+    # Lặp qua dữ liệu JSON
+    for company_code, company_data in data_dict.items():
+        ten_cong_ty = company_data.get("tenCongTy", "")
+        
+        # Sắp xếp các năm (mới nhất trước) cho dễ đọc
+        annual_reports = company_data.get("annual_reports", {})
+        sorted_years = sorted(annual_reports.keys(), reverse=True)
+
+        for year in sorted_years:
+            report = annual_reports[year]
+            
+            # Tạo một hàng
+            if isinstance(report, str):
+                # Trường hợp "Không đủ dữ liệu"
+                row = [company_code, ten_cong_ty, year, report]
+            else:
+                # Trường hợp có dữ liệu
+                row = [
+                    company_code,
+                    ten_cong_ty,
+                    year,
+                    format_number(report.get("ROA")),
+                    format_number(report.get("ROE")),
+                    format_number(report.get("TySuatThanhToanHienHanh"), is_percent=False), # Đây là tỷ lệ, không phải %
+                    format_number(report.get("HeSoNoTrenTongTaiSan")),
+                    format_number(report.get("TangTruongTaiSan")),
+                    format_number(report.get("TangTruongLoiNhuan")),
+                    format_number(report.get("EPS")),
+                    format_number(report.get("PE")),
+                    format_number(report.get("PB")),
+                    format_number(report.get("Beta")),
+                    format_number(report.get("GiaDongCuaCuoiNam")),
+                    format_number(report.get("TyLeNoDaiHan"), is_percent=False)
+                ]
+            
+            rows_to_insert.append(row)
+
+    # 4. Cập nhật Sheet
+    print(f"Đang chuẩn bị cập nhật {len(rows_to_insert)} hàng...")
+    
+    # Xóa toàn bộ nội dung cũ
+    worksheet.clear()
+    
+    # Cập nhật tất cả dữ liệu một lúc (nhanh nhất)
+    worksheet.update(f'A1:O{len(rows_to_insert)}', rows_to_insert, 
+                        value_input_option='USER_ENTERED')
+    
+    print("Cập nhật Google Sheet thành công!")
+    return True
+
+
+###----------------------Nhóm hàm intelligence chat bot---------------------###
+
+class TradingEnv:
+    def __init__(self, data, initial_balance=100000):
+        self.data = data
+        self.initial_balance = initial_balance
+        self.reset()
+    
+    def reset(self):
+        self.cash = self.initial_balance
+        self.position = 0
+        self.current_step = 0
+        self.portfolio_values = []
+        return self._get_state()
+    
+    def _get_state(self):
+        return self.data.iloc[self.current_step]
+    
+    def step(self, action):
+        """
+        action: 'BUY', 'SELL', 'HOLD'
+        """
+        price = self.data.iloc[self.current_step]["Close"]
+        
+        if action == "BUY" and self.cash >= price:
+            self.position += 1
+            self.cash -= price
+        elif action == "SELL" and self.position > 0:
+            self.position -= 1
+            self.cash += price
+        
+        portfolio_value = self.cash + self.position * price
+        self.portfolio_values.append(portfolio_value)
+
+        self.current_step += 1
+        done = self.current_step >= len(self.data) - 1
+        return self._get_state(), portfolio_value, 
+
+
+
+
+
+
+
+

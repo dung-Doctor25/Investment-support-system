@@ -1,0 +1,83 @@
+{% extends 'main.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h3>📊 Import Báo Cáo Tài Chính</h3>
+
+  <form id="importForm">
+    <div class="mb-3">
+      <label for="congTy" class="form-label">Chọn Công Ty</label>
+      <select id="congTy" name="congTy" class="form-select" required>
+        <option value="">-- Chọn công ty --</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="nam" class="form-label">Năm</label>
+      <input type="number" id="nam" name="nam" class="form-control" min="2000" max="2100" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="quy" class="form-label">Quý (1-4 hoặc 0 cho năm)</label>
+      <input type="number" id="quy" name="quy" class="form-control" min="0" max="5" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Import dữ liệu</button>
+  </form>
+
+  <div id="result" class="mt-3"></div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // 🧭 Load danh sách công ty khi trang mở
+  async function loadCongTy() {
+    const res = await fetch("/api/get_congty_data/");
+    const companies = await res.json();
+    const select = document.getElementById("congTy");
+
+    companies.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.maChungKhoan;  // vì ForeignKey to_field='maChungKhoan'
+      option.textContent = `${c.tenCongTy} (${c.maChungKhoan})`;
+      select.appendChild(option);
+    });
+  }
+
+  loadCongTy();
+
+
+    document.getElementById("importForm").addEventListener("submit", async (e) => { // <-- Thêm "async" ở đây
+        e.preventDefault();
+
+        const formData = {
+        congTy: document.getElementById("congTy").value,
+        nam: document.getElementById("nam").value,
+        quy: document.getElementById("quy").value
+        };
+
+        // Bây giờ bạn có thể dùng await bên trong hàm này
+        try {
+            const response = await fetch("/api/post_tonghoptaichinh_data/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // Đảm bảo bạn có hàm getCookie("csrftoken")
+                "X-CSRFToken": getCookie("csrftoken") 
+            },
+            body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+            document.getElementById("result").innerHTML =
+            `<div class="alert alert-${response.ok ? 'success' : 'danger'}">${data.message || data.error}</div>`;
+
+        } catch (error) {
+            console.error('Fetch error:', error);
+            document.getElementById("result").innerHTML =
+            `<div class="alert alert-danger">Đã xảy ra lỗi kết nối. Vui lòng thử lại.</div>`;
+        }
+    });
+});
+
+</script>
+{% endblock %}

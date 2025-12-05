@@ -1,0 +1,471 @@
+{% extends "main.html" %}
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Financial Chatbot</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* --- 1. RESET & LAYOUT --- */
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* --- THÊM CSS ĐỂ HIỂN THỊ FORMAT ĐẸP HƠN --- */
+        .bot-message p { margin: 5px 0; } /* Cách dòng đoạn văn */
+        .bot-message ul, .bot-message ol { margin: 5px 0; padding-left: 20px; } /* Thụt đầu dòng cho list */
+        .bot-message strong { font-weight: bold; color: #000; } /* In đậm rõ hơn */
+        .bot-message pre { 
+            background: #2d2d2d; 
+            color: #fff; 
+            padding: 10px; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            font-family: monospace;
+        } /* Nếu bot trả về code block */
+
+
+        .typing-indicator {
+            background-color: #e9e9eb; /* Màu nền giống tin nhắn bot */
+            padding: 15px 20px;
+            border-radius: 20px;
+            border-bottom-left-radius: 4px; /* Bo góc đặc trưng của bot */
+            display: table; /* Để ôm vừa nội dung */
+            align-self: flex-start;
+            margin-bottom: 15px;
+            position: relative;
+            width: fit-content;
+        }
+
+        /* Các dấu chấm */
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #90949c; /* Màu chấm xám */
+            border-radius: 50%;
+            animation: typing-bounce 1.4s infinite ease-in-out both;
+            margin: 0 2px; /* Khoảng cách giữa các chấm */
+        }
+
+        /* Chỉnh độ trễ (delay) để tạo hiệu ứng sóng */
+        .typing-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        /* Animation nhún nhảy */
+        @keyframes typing-bounce {
+            0%, 80%, 100% { 
+                transform: scale(0); 
+                opacity: 0.5;
+            }
+            40% { 
+                transform: scale(1); 
+                opacity: 1;
+            }
+        }
+        /* --- 2. MAIN CHAT CONTAINER (RỘNG HƠN) --- */
+        .chat-container {
+            width: 900px; /* Tăng từ 500px lên 900px để chứa bảng */
+            max-width: 95%; /* Responsive trên mobile */
+            height: 85vh;   /* Cao 85% màn hình */
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Bo góc trọn vẹn */
+        }
+
+        /* --- 3. CHAT AREA --- */
+        #chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Khoảng cách giữa các tin nhắn */
+        }
+
+        /* --- 4. MESSAGE BUBBLES --- */
+        .message {
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.5;
+            font-size: 15px;
+            max-width: 75%; /* Tin nhắn thường chỉ chiếm 75% */
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .user-message {
+            background-color: #0084ff;
+            color: white;
+            align-self: flex-end; /* Nằm bên phải */
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background-color: #e4e6eb;
+            color: #050505;
+            align-self: flex-start; /* Nằm bên trái */
+            border-bottom-left-radius: 4px;
+        }
+
+        /* --- 5. REPORT MESSAGE (STYLE ĐẶC BIỆT CHO BẢNG) --- */
+        /* Khi tin nhắn là báo cáo, nó sẽ rộng full màn hình chat */
+        .message.report-message {
+            max-width: 98%; /* Rộng gần hết khung */
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        /* --- 6. LOADING ANIMATION --- */
+        .bot-message.loading {
+            padding-right: 30px;
+        }
+        .bot-message.loading::after {
+            content: '...';
+            position: absolute;
+            animation: typing 1.5s infinite;
+            display: inline-block;
+            width: 20px;
+            text-align: left;
+        }
+        @keyframes typing {
+            0% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
+        }
+
+        /* --- 7. INPUT AREA --- */
+        #chat-form {
+            display: flex;
+            padding: 15px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 24px;
+            padding: 12px 20px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        #message-input:focus {
+            border-color: #0084ff;
+        }
+
+        #send-button {
+            border: none;
+            background-color: #0084ff;
+            color: white;
+            border-radius: 50%; /* Nút tròn */
+            width: 45px;
+            height: 45px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+        }
+        #send-button:hover {
+            background-color: #006bce;
+        }
+
+        /* --- 8. TABLE STYLES (QUAN TRỌNG) --- */
+        .table-wrapper {
+            overflow-x: auto; /* Cho phép cuộn ngang nếu bảng quá rộng */
+            margin-top: 10px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+        }
+
+        table.financial-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px; /* Chữ nhỏ gọn */
+            font-family: 'Segoe UI', sans-serif;
+            min-width: 600px; /* Đảm bảo bảng không bị co quá nhỏ */
+        }
+
+        table.financial-table th, 
+        table.financial-table td {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        table.financial-table th {
+            background-color: #f8f9fa;
+            color: #444;
+            font-weight: 600;
+            text-align: center;
+            white-space: nowrap; /* Không xuống dòng tiêu đề */
+        }
+
+        table.financial-table td {
+            text-align: right;
+            color: #333;
+        }
+
+        table.financial-table td:first-child {
+            text-align: left;
+            font-weight: 600;
+            color: #0056b3; /* Màu xanh cho cột Năm */
+            position: sticky; /* Cố định cột đầu tiên (tùy chọn) */
+            left: 0;
+            background-color: #fff;
+        }
+
+        table.financial-table caption {
+            caption-side: top;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #0084ff;
+            text-align: left;
+            margin-bottom: 8px;
+            padding-left: 5px;
+        }
+        
+        .company-separator {
+            border-top: 2px dashed #ccc;
+            margin: 20px 0;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div style="padding: 15px; border-bottom: 1px solid #eee; background: #fff; font-weight: bold; color: #333; display: flex; align-items: center;">
+            <div style="width: 10px; height: 10px; background: #28a745; border-radius: 50%; margin-right: 10px;"></div>
+            Trợ lý Tài chính AI
+        </div>
+
+        <div id="chat-box">
+            <div class="message bot-message">Xin chào! Tôi có thể giúp gì cho bạn? <br> Gõ <strong>/report</strong> để xem bảng tổng hợp tài chính chi tiết.</div>
+        </div>
+
+        <form id="chat-form">
+            {% csrf_token %} 
+            <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off">
+            <button id="send-button" type="submit">➤</button>
+        </form>
+    </div>
+
+    <script>
+        console.log("Chatbot page loaded.");
+        const chatBox = document.getElementById('chat-box');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+
+        // Hàm helper lấy cookie (giữ nguyên)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // 1. WebSocket
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
+
+        // --- 4. HÀM THÊM TIN NHẮN (ĐÃ CẬP NHẬT) ---
+        // Thêm tham số isWide để chỉ định tin nhắn nào cần mở rộng (như Báo cáo)
+        function addMessage(text, sender, isLoading = false, isHtml = false, isWide = false) {
+            // 1. Xử lý Loading
+            if (isLoading) {
+                const loadingContainer = document.createElement('div');
+                loadingContainer.classList.add('typing-indicator');
+                loadingContainer.id = 'loading-message';
+                loadingContainer.innerHTML = '<span></span><span></span><span></span>';
+                chatBox.appendChild(loadingContainer);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return loadingContainer;
+            }
+
+            // 2. Tạo phần tử tin nhắn
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', sender + '-message');
+
+            if (isHtml) {
+                // Nếu là HTML (Markdown đã parse hoặc Báo cáo)
+                // Chỉ thêm class report-message (làm rộng khung) nếu isWide = true
+                if (isWide) {
+                    messageElement.classList.add('report-message');
+                }
+                messageElement.innerHTML = text;
+            } else {
+                // Tin nhắn văn bản thuần (thường là của User)
+                messageElement.textContent = text;
+            }
+            
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageElement;
+        }
+        // 2. Hàm xóa loading
+        function removeLoading() {
+            // Tìm tất cả các phần tử có class 'typing-indicator'
+            const loaders = document.querySelectorAll('.typing-indicator');
+            
+            // Xóa từng cái một
+            loaders.forEach(loader => {
+                loader.remove();
+            });
+        }
+        // 3. Hàm fetch lưu tin nhắn (giữ nguyên)
+        async function saveMessageToServer(sender, content) {
+            try {
+                await fetch('/api/save-message/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    body: JSON.stringify({ sender: sender, content: content })
+                });
+            } catch (error) { console.error(error); }
+        }
+
+        // 4. Hàm định dạng số
+        function formatNumber(value) {
+            if (typeof value === 'string') return value;
+            return (value * 100).toFixed(2) + '%';
+        }
+
+        // 5. Hàm tạo HTML Bảng (CẬP NHẬT CẤU TRÚC BẢNG)
+        function formatReport(data) {
+            let html = '<div style="margin-bottom: 10px;">📊 <strong>BÁO CÁO TÀI CHÍNH TỔNG HỢP</strong></div>';
+            
+            let count = 0;
+            for (const companyCode in data) {
+                const companyData = data[companyCode];
+                if(count > 0) html += '<div class="company-separator"></div>';
+                
+                // Bắt đầu wrapper bảng (để scroll ngang)
+                html += `
+                    <div class="table-wrapper">
+                        <table class="financial-table">
+                            <caption>${companyCode} - ${companyData.tenCongTy}</caption>
+                            <thead>
+                                <tr>
+                                    <th>Năm</th>
+                                    <th>ROA</th>
+                                    <th>ROE</th>
+                                    <th>TT Tài Sản</th>
+                                    <th>TT Lợi Nhuận</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                const years = Object.keys(companyData.annual_reports).sort((a, b) => b - a);
+                
+                for (const year of years) {
+                    const report = companyData.annual_reports[year];
+                    
+                    if (typeof report === 'string') {
+                         html += `<tr><td>${year}</td><td colspan="4" style="text-align:center; color:#999;">${report}</td></tr>`;
+                    } else {
+                        html += `
+                            <tr>
+                                <td>${year}</td>
+                                <td>${formatNumber(report.ROA)}</td>
+                                <td>${formatNumber(report.ROE)}</td>
+                                <td>${formatNumber(report.TangTruongTaiSan)}</td>
+                                <td style="font-weight:bold; color: ${report.TangTruongLoiNhuan > 0 ? 'green' : 'red'}">
+                                    ${formatNumber(report.TangTruongLoiNhuan)}
+                                </td>
+                            </tr>
+                        `;
+                    }
+                }
+                html += '</tbody></table></div>'; // Đóng wrapper
+                count++;
+            }
+            return html;
+        }
+
+        // 6. Fetch Report Logic
+        async function fetchFinancialReport() {
+            const loadingMsg = addMessage("Đang tổng hợp dữ liệu...", 'bot', true);
+            try {
+                const response = await fetch('/api/financial-ratios/');
+                if (!response.ok) throw new Error('Network err');
+                const data = await response.json();
+                
+                loadingMsg.remove();
+                
+                // Gọi hàm format mới
+                const formattedHtml = formatReport(data);
+                addMessage(formattedHtml, 'bot', false, true); // isHtml = true
+
+            } catch (error) {
+                loadingMsg.remove();
+                addMessage('Lỗi tải báo cáo.', 'bot');
+            }
+        }
+
+        // 7. Event Listener
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, 'user');
+            messageInput.value = '';
+
+            if (message.toLowerCase() === '/report') {
+                fetchFinancialReport();
+            } else {
+                socket.send(JSON.stringify({ 'message': message }));
+                saveMessageToServer('user', message);
+                
+                const loading = addMessage("", 'bot', true);
+                loading.classList.add('loading');
+            }
+        });
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Xóa loading
+            
+            if (data.type === 'bot_response') {
+                // --- SỬA ĐOẠN NÀY ---
+                // Dùng marked để chuyển Markdown của Gemini sang HTML
+                const htmlContent = marked.parse(data.message);
+                
+                removeLoading();
+                // Gọi addMessage với isHtml = true, nhưng isWide = false (để bong bóng chat gọn gàng)
+                addMessage(htmlContent, 'bot', false, true, false);
+                // --------------------
+                
+                saveMessageToServer('bot', data.message);
+            } else if (data.type === 'error') {
+                addMessage(`Lỗi: ${data.message}`, 'bot');
+            }
+        };
+
+    </script>
+</body>
+{% endblock %}

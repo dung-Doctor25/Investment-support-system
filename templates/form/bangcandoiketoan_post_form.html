@@ -1,0 +1,263 @@
+{% extends 'main.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <h2>Nhập liệu Bảng Cân Đối Kế Toán</h2>
+    <p>Form nhập liệu thủ công cho các chỉ số tài chính. Đảm bảo `id` của mỗi thẻ input khớp với tên trường trong model Django.</p>
+
+    <form id="bcdtForm">
+        <div class="mb-3">
+            <label for="baoCaoSelect" class="form-label"><strong>1. Chọn Báo Cáo Tài Chính (Bắt buộc)</strong></label>
+            <select id="baoCaoSelect" class="form-select" required>
+                <option value="" selected disabled>Đang tải danh sách báo cáo...</option>
+            </select>
+        </div>
+        
+        <hr>
+        
+        <h3 class="mt-4 text-primary">PHẦN TÀI SẢN</h3>
+
+        <h4 class="mt-4">A. TÀI SẢN NGẮN HẠN</h4>
+        <div class="row">
+            <div class="col-md-4 mb-3"><label for="taiSanNganHan" class="form-label">Tài sản ngắn hạn (Tổng)</label><input type="number" class="form-control" id="taiSanNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="tienVaCacKhoanTuongDuongTien" class="form-label">Tiền và các khoản tương đương tiền</label><input type="number" class="form-control" id="tienVaCacKhoanTuongDuongTien"></div>
+            <div class="col-md-4 mb-3"><label for="tien" class="form-label">Tiền</label><input type="number" class="form-control" id="tien"></div>
+            <div class="col-md-4 mb-3"><label for="cacKhoanTuongDuongTien" class="form-label">Các khoản tương đương tiền</label><input type="number" class="form-control" id="cacKhoanTuongDuongTien"></div>
+            <div class="col-md-4 mb-3"><label for="cacKhoanDauTuTaiChinhNganHan" class="form-label">Đầu tư tài chính ngắn hạn</label><input type="number" class="form-control" id="cacKhoanDauTuTaiChinhNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="chungKhoanKinhDoanh" class="form-label">Chứng khoán kinh doanh</label><input type="number" class="form-control" id="chungKhoanKinhDoanh"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongGiamGiaChungKhoanKinhDoanh" class="form-label">Dự phòng giảm giá CK kinh doanh</label><input type="number" class="form-control" id="duPhongGiamGiaChungKhoanKinhDoanh"></div>
+            <div class="col-md-4 mb-3"><label for="dauTuNamGiuDenNgayDaoHanNH" class="form-label">Đầu tư nắm giữ đến ngày đáo hạn</label><input type="number" class="form-control" id="dauTuNamGiuDenNgayDaoHanNH"></div>
+            <div class="col-md-4 mb-3"><label for="cacKhoanPhaiThuNganHan" class="form-label">Các khoản phải thu ngắn hạn</label><input type="number" class="form-control" id="cacKhoanPhaiThuNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuNganHanCuaKhachHang" class="form-label">Phải thu ngắn hạn của khách hàng</label><input type="number" class="form-control" id="phaiThuNganHanCuaKhachHang"></div>
+            <div class="col-md-4 mb-3"><label for="traTruocChoNguoiBanNganHan" class="form-label">Trả trước cho người bán ngắn hạn</label><input type="number" class="form-control" id="traTruocChoNguoiBanNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuNoiBoNganHan" class="form-label">Phải thu nội bộ ngắn hạn</label><input type="number" class="form-control" id="phaiThuNoiBoNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuTheoTienDoKeHoachHopDongXayDung" class="form-label">Phải thu theo tiến độ HĐ xây dựng</label><input type="number" class="form-control" id="phaiThuTheoTienDoKeHoachHopDongXayDung"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuVeChoVayNganHan" class="form-label">Phải thu về cho vay ngắn hạn</label><input type="number" class="form-control" id="phaiThuVeChoVayNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuNganHanKhac" class="form-label">Phải thu ngắn hạn khác</label><input type="number" class="form-control" id="phaiThuNganHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongPhaiThuNganHanKhoDoi" class="form-label">Dự phòng phải thu NH khó đòi</label><input type="number" class="form-control" id="duPhongPhaiThuNganHanKhoDoi"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanThieuChoXuLy" class="form-label">Tài sản thiếu chờ xử lý</label><input type="number" class="form-control" id="taiSanThieuChoXuLy"></div>
+            <div class="col-md-4 mb-3"><label for="hangTonKho" class="form-label">Hàng tồn kho</label><input type="number" class="form-control" id="hangTonKho"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongGiamGiaHangTonKho" class="form-label">Dự phòng giảm giá hàng tồn kho</label><input type="number" class="form-control" id="duPhongGiamGiaHangTonKho"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanNganHanKhac" class="form-label">Tài sản ngắn hạn khác</label><input type="number" class="form-control" id="taiSanNganHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiTraTruocNganHan" class="form-label">Chi phí trả trước ngắn hạn</label><input type="number" class="form-control" id="chiPhiTraTruocNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="thueGTGTDuocKhauTru" class="form-label">Thuế GTGT được khấu trừ</label><input type="number" class="form-control" id="thueGTGTDuocKhauTru"></div>
+            <div class="col-md-4 mb-3"><label for="thueVaCacKhoanKhacPhaiThuNhaNuoc" class="form-label">Thuế và các khoản khác phải thu NN</label><input type="number" class="form-control" id="thueVaCacKhoanKhacPhaiThuNhaNuoc"></div>
+            <div class="col-md-4 mb-3"><label for="giaoDichMuaBanLaiTraiPhieuChinhPhu" class="form-label">Giao dịch mua bán lại TPCP</label><input type="number" class="form-control" id="giaoDichMuaBanLaiTraiPhieuChinhPhu"></div>
+        </div>
+
+        <h4 class="mt-4">B. TÀI SẢN DÀI HẠN</h4>
+        <div class="row">
+            <div class="col-md-4 mb-3"><label for="taiSanDaiHan" class="form-label">Tài sản dài hạn (Tổng)</label><input type="number" class="form-control" id="taiSanDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="cacKhoanPhaiThuDaiHan" class="form-label">Các khoản phải thu dài hạn</label><input type="number" class="form-control" id="cacKhoanPhaiThuDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuDaiHanCuaKhachHang" class="form-label">Phải thu dài hạn của khách hàng</label><input type="number" class="form-control" id="phaiThuDaiHanCuaKhachHang"></div>
+            <div class="col-md-4 mb-3"><label for="traTruocChoNguoiBanDaiHan" class="form-label">Trả trước cho người bán dài hạn</label><input type="number" class="form-control" id="traTruocChoNguoiBanDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="vonKinhDoanhODonViTrucThuoc" class="form-label">Vốn KD ở đơn vị trực thuộc</label><input type="number" class="form-control" id="vonKinhDoanhODonViTrucThuoc"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuNoiBoDaiHan" class="form-label">Phải thu nội bộ dài hạn</label><input type="number" class="form-control" id="phaiThuNoiBoDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuVeChoVayDaiHan" class="form-label">Phải thu về cho vay dài hạn</label><input type="number" class="form-control" id="phaiThuVeChoVayDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiThuDaiHanKhac" class="form-label">Phải thu dài hạn khác</label><input type="number" class="form-control" id="phaiThuDaiHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongPhaiThuDaiHanKhoDoi" class="form-label">Dự phòng phải thu DH khó đòi</label><input type="number" class="form-control" id="duPhongPhaiThuDaiHanKhoDoi"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanCoDinh" class="form-label">Tài sản cố định</label><input type="number" class="form-control" id="taiSanCoDinh"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanCoDinhHuuHinh" class="form-label">TSCĐ hữu hình</label><input type="number" class="form-control" id="taiSanCoDinhHuuHinh"></div>
+            <div class="col-md-4 mb-3"><label for="nguyenGia" class="form-label">Nguyên giá</label><input type="number" class="form-control" id="nguyenGia"></div>
+            <div class="col-md-4 mb-3"><label for="giaTriHaoMonLuyKe" class="form-label">Giá trị hao mòn lũy kế</label><input type="number" class="form-control" id="giaTriHaoMonLuyKe"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanCoDinhThueTaiChinh" class="form-label">TSCĐ thuê tài chính</label><input type="number" class="form-control" id="taiSanCoDinhThueTaiChinh"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanCoDinhVoHinh" class="form-label">TSCĐ vô hình</label><input type="number" class="form-control" id="taiSanCoDinhVoHinh"></div>
+            <div class="col-md-4 mb-3"><label for="batDongSanDauTu" class="form-label">Bất động sản đầu tư</label><input type="number" class="form-control" id="batDongSanDauTu"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanDoDangDaiHan" class="form-label">Tài sản dở dang dài hạn</label><input type="number" class="form-control" id="taiSanDoDangDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiSanXuatKinhDoanhDoDangDaiHan" class="form-label">Chi phí SXKD dở dang dài hạn</label><input type="number" class="form-control" id="chiPhiSanXuatKinhDoanhDoDangDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiXayDungCoBanDoDang" class="form-label">Chi phí xây dựng cơ bản dở dang</label><input type="number" class="form-control" id="chiPhiXayDungCoBanDoDang"></div>
+            <div class="col-md-4 mb-3"><label for="dauTuTaiChinhDaiHan" class="form-label">Đầu tư tài chính dài hạn</label><input type="number" class="form-control" id="dauTuTaiChinhDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="dauTuVaoCongTyCon" class="form-label">Đầu tư vào công ty con</label><input type="number" class="form-control" id="dauTuVaoCongTyCon"></div>
+            <div class="col-md-4 mb-3"><label for="dauTuVaoCongTyLienKetLienDoanh" class="form-label">Đầu tư vào cty liên kết, liên doanh</label><input type="number" class="form-control" id="dauTuVaoCongTyLienKetLienDoanh"></div>
+            <div class="col-md-4 mb-3"><label for="dauTuGopVonVaoDonViKhac" class="form-label">Đầu tư góp vốn vào đơn vị khác</label><input type="number" class="form-control" id="dauTuGopVonVaoDonViKhac"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongDauTuTaiChinhDaiHan" class="form-label">Dự phòng đầu tư tài chính dài hạn</label><input type="number" class="form-control" id="duPhongDauTuTaiChinhDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanDaiHanKhac" class="form-label">Tài sản dài hạn khác</label><input type="number" class="form-control" id="taiSanDaiHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiTraTruocDaiHan" class="form-label">Chi phí trả trước dài hạn</label><input type="number" class="form-control" id="chiPhiTraTruocDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="taiSanThueThuNhapHoanLai" class="form-label">Tài sản thuế TNDN hoãn lại</label><input type="number" class="form-control" id="taiSanThueThuNhapHoanLai"></div>
+            <div class="col-md-4 mb-3"><label for="thietBiVatTuPhuTungThayTheDaiHan" class="form-label">Thiết bị, vật tư, phụ tùng thay thế DH</label><input type="number" class="form-control" id="thietBiVatTuPhuTungThayTheDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="loiTheThuongMai" class="form-label">Lợi thế thương mại</label><input type="number" class="form-control" id="loiTheThuongMai"></div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="tongCongTaiSan" class="form-label fw-bold">TỔNG CỘNG TÀI SẢN</label>
+                <input type="number" class="form-control form-control-lg" id="tongCongTaiSan">
+            </div>
+        </div>
+        <hr>
+
+        <h3 class="mt-5 text-primary">PHẦN NGUỒN VỐN</h3>
+
+        <h4 class="mt-4">C. NỢ PHẢI TRẢ</h4>
+        <div class="row">
+            <div class="col-md-4 mb-3"><label for="noPhaiTra" class="form-label">Nợ phải trả (Tổng)</label><input type="number" class="form-control" id="noPhaiTra"></div>
+            <div class="col-md-4 mb-3"><label for="noNganHan" class="form-label">Nợ ngắn hạn</label><input type="number" class="form-control" id="noNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNguoiBanNganHan" class="form-label">Phải trả người bán ngắn hạn</label><input type="number" class="form-control" id="phaiTraNguoiBanNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="nguoiMuaTraTienTruocNganHan" class="form-label">Người mua trả tiền trước ngắn hạn</label><input type="number" class="form-control" id="nguoiMuaTraTienTruocNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="thueVaCacKhoanPhaiNopNhaNuoc" class="form-label">Thuế và các khoản phải nộp NN</label><input type="number" class="form-control" id="thueVaCacKhoanPhaiNopNhaNuoc"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNguoiLaoDong" class="form-label">Phải trả người lao động</label><input type="number" class="form-control" id="phaiTraNguoiLaoDong"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiPhaiTraNganHan" class="form-label">Chi phí phải trả ngắn hạn</label><input type="number" class="form-control" id="chiPhiPhaiTraNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNoiBoNganHan" class="form-label">Phải trả nội bộ ngắn hạn</label><input type="number" class="form-control" id="phaiTraNoiBoNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraTheoTienDoKeHoachHopDongXayDungNH" class="form-label">Phải trả theo tiến độ HĐ xây dựng</label><input type="number" class="form-control" id="phaiTraTheoTienDoKeHoachHopDongXayDungNH"></div>
+            <div class="col-md-4 mb-3"><label for="doanhThuChuaThucHienNganHan" class="form-label">Doanh thu chưa thực hiện ngắn hạn</label><input type="number" class="form-control" id="doanhThuChuaThucHienNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNganHanKhac" class="form-label">Phải trả ngắn hạn khác</label><input type="number" class="form-control" id="phaiTraNganHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="vayVaNoThueTaiChinhNganHan" class="form-label">Vay và nợ thuê tài chính ngắn hạn</label><input type="number" class="form-control" id="vayVaNoThueTaiChinhNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongPhaiTraNganHan" class="form-label">Dự phòng phải trả ngắn hạn</label><input type="number" class="form-control" id="duPhongPhaiTraNganHan"></div>
+            <div class="col-md-4 mb-3"><label for="quyKhenThuongPhucLoi" class="form-label">Quỹ khen thưởng, phúc lợi</label><input type="number" class="form-control" id="quyKhenThuongPhucLoi"></div>
+            <div class="col-md-4 mb-3"><label for="quyBinhOnGia" class="form-label">Quỹ bình ổn giá</label><input type="number" class="form-control" id="quyBinhOnGia"></div>
+            <div class="col-md-4 mb-3"><label for="noDaiHan" class="form-label">Nợ dài hạn</label><input type="number" class="form-control" id="noDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNguoiBanDaiHan" class="form-label">Phải trả người bán dài hạn</label><input type="number" class="form-control" id="phaiTraNguoiBanDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="nguoiMuaTraTienTruocDaiHan" class="form-label">Người mua trả tiền trước dài hạn</label><input type="number" class="form-control" id="nguoiMuaTraTienTruocDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiPhaiTraDaiHan" class="form-label">Chi phí phải trả dài hạn</label><input type="number" class="form-control" id="chiPhiPhaiTraDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNoiBoVeVonKinhDoanh" class="form-label">Phải trả nội bộ về vốn KD</label><input type="number" class="form-control" id="phaiTraNoiBoVeVonKinhDoanh"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraNoiBoDaiHan" class="form-label">Phải trả nội bộ dài hạn</label><input type="number" class="form-control" id="phaiTraNoiBoDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="doanhThuChuaThucHienDaiHan" class="form-label">Doanh thu chưa thực hiện dài hạn</label><input type="number" class="form-control" id="doanhThuChuaThucHienDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="phaiTraDaiHanKhac" class="form-label">Phải trả dài hạn khác</label><input type="number" class="form-control" id="phaiTraDaiHanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="vayVaNoThueTaiChinhDaiHan" class="form-label">Vay và nợ thuê tài chính dài hạn</label><input type="number" class="form-control" id="vayVaNoThueTaiChinhDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="traiPhieuChuyenDoi" class="form-label">Trái phiếu chuyển đổi</label><input type="number" class="form-control" id="traiPhieuChuyenDoi"></div>
+            <div class="col-md-4 mb-3"><label for="coPhieuUuDai" class="form-label">Cổ phiếu ưu đãi</label><input type="number" class="form-control" id="coPhieuUuDai"></div>
+            <div class="col-md-4 mb-3"><label for="thueThuNhapHoanLaiPhaiTra" class="form-label">Thuế TNDN hoãn lại phải trả</label><input type="number" class="form-control" id="thueThuNhapHoanLaiPhaiTra"></div>
+            <div class="col-md-4 mb-3"><label for="duPhongPhaiTraDaiHan" class="form-label">Dự phòng phải trả dài hạn</label><input type="number" class="form-control" id="duPhongPhaiTraDaiHan"></div>
+            <div class="col-md-4 mb-3"><label for="quyPhatTrienKhoaHocVaCongNghe" class="form-label">Quỹ PT khoa học và công nghệ</label><input type="number" class="form-control" id="quyPhatTrienKhoaHocVaCongNghe"></div>
+        </div>
+
+        <h4 class="mt-4">D. VỐN CHỦ SỞ HỮU</h4>
+        <div class="row">
+            <div class="col-md-4 mb-3"><label for="vonChuSoHuu" class="form-label">Vốn chủ sở hữu (Tổng)</label><input type="number" class="form-control" id="vonChuSoHuu"></div>
+            <div class="col-md-4 mb-3"><label for="vonChuSoHuuCon" class="form-label">Vốn chủ sở hữu (Con)</label><input type="number" class="form-control" id="vonChuSoHuuCon"></div>
+            <div class="col-md-4 mb-3"><label for="vonGopCuaChuSoHuu" class="form-label">Vốn góp của chủ sở hữu</label><input type="number" class="form-control" id="vonGopCuaChuSoHuu"></div>
+            <div class="col-md-4 mb-3"><label for="thangDuVonCoPhan" class="form-label">Thặng dư vốn cổ phần</label><input type="number" class="form-control" id="thangDuVonCoPhan"></div>
+            <div class="col-md-4 mb-3"><label for="quyenChonChuyenDoiTraiPhieu" class="form-label">Quyền chọn chuyển đổi trái phiếu</label><input type="number" class="form-control" id="quyenChonChuyenDoiTraiPhieu"></div>
+            <div class="col-md-4 mb-3"><label for="vonKhacCuaChuSoHuu" class="form-label">Vốn khác của chủ sở hữu</label><input type="number" class="form-control" id="vonKhacCuaChuSoHuu"></div>
+            <div class="col-md-4 mb-3"><label for="coPhieuQuy" class="form-label">Cổ phiếu quỹ</label><input type="number" class="form-control" id="coPhieuQuy"></div>
+            <div class="col-md-4 mb-3"><label for="chenhLechDanhGiaLaiTaiSan" class="form-label">Chênh lệch đánh giá lại tài sản</label><input type="number" class="form-control" id="chenhLechDanhGiaLaiTaiSan"></div>
+            <div class="col-md-4 mb-3"><label for="chenhLechTyGiaHoiDoai" class="form-label">Chênh lệch tỷ giá hối đoái</label><input type="number" class="form-control" id="chenhLechTyGiaHoiDoai"></div>
+            <div class="col-md-4 mb-3"><label for="quyDauTuPhatTrien" class="form-label">Quỹ đầu tư phát triển</label><input type="number" class="form-control" id="quyDauTuPhatTrien"></div>
+            <div class="col-md-4 mb-3"><label for="quyHoTroSapXepDoanhNghiep" class="form-label">Quỹ hỗ trợ sắp xếp doanh nghiệp</label><input type="number" class="form-control" id="quyHoTroSapXepDoanhNghiep"></div>
+            <div class="col-md-4 mb-3"><label for="quyKhacThuocVonChuSoHuu" class="form-label">Quỹ khác thuộc vốn chủ sở hữu</label><input type="number" class="form-control" id="quyKhacThuocVonChuSoHuu"></div>
+            <div class="col-md-4 mb-3"><label for="loiNhuanSauThueChuaPhanPhoi" class="form-label">Lợi nhuận sau thuế chưa phân phối</label><input type="number" class="form-control" id="loiNhuanSauThueChuaPhanPhoi"></div>
+            <div class="col-md-4 mb-3"><label for="nguonVonDauTuXDCB" class="form-label">Nguồn vốn đầu tư XDCB</label><input type="number" class="form-control" id="nguonVonDauTuXDCB"></div>
+            <div class="col-md-4 mb-3"><label for="loiIchCoDongKhongKiemSoat" class="form-label">Lợi ích cổ đông không kiểm soát</label><input type="number" class="form-control" id="loiIchCoDongKhongKiemSoat"></div>
+            <div class="col-md-4 mb-3"><label for="nguonKinhPhiVaQuyKhac" class="form-label">Nguồn kinh phí và quỹ khác</label><input type="number" class="form-control" id="nguonKinhPhiVaQuyKhac"></div>
+            <div class="col-md-4 mb-3"><label for="nguonKinhPhi" class="form-label">Nguồn kinh phí</label><input type="number" class="form-control" id="nguonKinhPhi"></div>
+            <div class="col-md-4 mb-3"><label for="nguonKinhPhiDaHinhThanhTSCD" class="form-label">Nguồn kinh phí đã hình thành TSCĐ</label><input type="number" class="form-control" id="nguonKinhPhiDaHinhThanhTSCD"></div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="tongCongNguonVon" class="form-label fw-bold">TỔNG CỘNG NGUỒN VỐN</label>
+                <input type="number" class="form-control form-control-lg" id="tongCongNguonVon">
+            </div>
+        </div>
+
+        <hr class="my-4">
+        
+        <button type="submit" class="btn btn-primary btn-lg">Lưu Dữ Liệu</button>
+    </form>
+    
+    <div id="result" class="mt-3"></div>
+</div>
+
+<script>
+
+
+    // --- SCRIPT CHÍNH ---
+    document.addEventListener('DOMContentLoaded', function(e) {
+        const baoCaoSelect = document.getElementById('baoCaoSelect');
+        const bcdtForm = document.getElementById('bcdtForm');
+        const resultDiv = document.getElementById('result');
+
+        // 1. Tải danh sách Báo cáo tài chính cho dropdown
+
+        async function companyName(company_id) {
+        const res = await fetch('/api/get_congty_data');
+        const result = await res.json();
+        const company = result.find(c => String(c.maChungKhoan) === String(company_id));
+        if (company) {
+            console.log(`✅ Tìm thấy: ${company.tenCongTy}`);
+            return company.tenCongTy;
+        } else {
+            console.log(`❌ Không tìm thấy mã: ${company_id}`);
+            return 'Unknown Company';
+        }
+        }
+
+        async function loadBaoCaoOptions() {
+            try {
+                const response = await fetch('/api/get_tonghoptaichinh_data/');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                baoCaoSelect.innerHTML = '<option value="" selected disabled>-- Chọn một báo cáo --</option>'; // Xóa thông báo loading
+             
+                for (const report of data) {
+                    const option = document.createElement('option');
+                    option.value = report.id;
+                    option.textContent = `${await companyName(report.congTy_id)} - ${report.nam}`; // ✅ Hợp lệ
+                    baoCaoSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Lỗi khi tải danh sách báo cáo:', error);
+                baoCaoSelect.innerHTML = '<option value="" selected disabled>Lỗi khi tải danh sách</option>';
+            }
+        }
+        
+        // Gọi hàm tải ngay khi trang được load
+        loadBaoCaoOptions();
+
+        // 2. Xử lý sự kiện submit form
+        bcdtForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            resultDiv.innerHTML = '<div class="alert alert-info">Đang gửi dữ liệu...</div>'; // Thông báo đang xử lý
+
+            // Lấy tất cả các input trong form
+            const inputs = bcdtForm.querySelectorAll('input[type="number"]');
+            const formData = {};
+
+            // Thêm ID của báo cáo đã chọn (quan trọng)
+            if (!baoCaoSelect.value) {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Vui lòng chọn một báo cáo tài chính!</div>`;
+                return;
+            }
+            formData['baoCao'] = parseInt(baoCaoSelect.value, 10);
+
+            
+
+            // Lặp qua các input để thu thập dữ liệu
+            for (let input of inputs) {
+                if (input.id && input.value !== '') { // Chỉ lấy những input có id và có giá trị
+                    formData[input.id] = parseInt(input.value, 10);
+                    console.log(`Đã thêm ${input.id}: ${formData[input.id]}`);
+                }
+            }
+            console.log('Dữ liệu form đã thu thập:', formData);
+            
+            // Gửi dữ liệu bằng fetch
+            try {
+                const response = await fetch('/api/post_bangcandoiketoan_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                
+                // Hiển thị thông báo
+                const alertClass = response.ok ? 'alert-success' : 'alert-danger';
+                resultDiv.innerHTML = `<div class="alert ${alertClass}">${data.message}</div>`;
+                
+                if(response.ok) {
+                    // Không reset form để người dùng có thể sửa đổi nếu cần
+                    // bcdtForm.reset(); 
+                }
+
+            } catch (error) {
+                console.error('Lỗi khi gửi form:', error);
+                resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
+            }
+        });
+    });
+</script>
+{% endblock %}

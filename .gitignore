@@ -1,0 +1,5 @@
+evn/
+db.sqlite3
+crawl/data/
+crawl/backup/
+credentials.json

@@ -1,0 +1,54 @@
+{% extends 'main.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>🧾 Thêm mới công ty</h2>
+
+  <form id="congTyForm">
+    <div class="mb-3">
+      <label for="tenCongTy" class="form-label">Tên công ty</label>
+      <input type="text" class="form-control" id="tenCongTy" name="tenCongTy" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="nganh" class="form-label">Ngành nghề</label>
+      <input type="text" class="form-control" id="nganh" name="nganh">
+    </div>
+
+    <div class="mb-3">
+      <label for="maChungKhoan" class="form-label">Mã chứng khoán</label>
+      <input type="text" class="form-control" id="maChungKhoan" name="maChungKhoan" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Gửi dữ liệu</button>
+  </form>
+
+  <div id="result" class="mt-3"></div>
+</div>
+
+<script>
+  document.getElementById("congTyForm").addEventListener("submit", async function (e) {
+    e.preventDefault(); // Ngăn reload trang
+
+    const formData = {
+      tenCongTy: document.getElementById("tenCongTy").value,
+      nganh: document.getElementById("nganh").value,
+      maChungKhoan: document.getElementById("maChungKhoan").value,
+    };
+
+    const response = await fetch("/api/post_congty_data/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"), // Bảo mật CSRF
+      },
+      body: JSON.stringify(formData),
+    });
+
+    const data = await response.json();
+    document.getElementById("result").innerHTML =
+      `<div class="alert alert-${response.ok ? 'success' : 'danger'}">${data.message}</div>`;
+  });
+
+
+</script>
+{% endblock %}

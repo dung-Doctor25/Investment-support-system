@@ -1,0 +1,418 @@
+{% extends 'main.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <h2>Import Dữ liệu Thị trường (Xử lý bằng JavaScript)</h2>
+    <p>File CSV sẽ được xử lý trực tiếp trên trình duyệt trước khi gửi lên server.</p>
+
+    <div class="mb-3">
+        <label for="csvFile" class="form-label">Chọn file thị trường:</label>
+        <input class="form-control" type="file" id="csvFileMarket" accept=".csv">
+    </div>
+    <div class="mb-3">
+        <label for="csvFile" class="form-label">Chọn file bảng cân đối kế toán:</label>
+        <input class="form-control" type="file" id="csvFileBalance" accept=".csv">
+    </div> 
+    <div class="mb-3">
+        <label for="csvFile" class="form-label">Chọn file bảng kết quả kinh doanh:</label>
+        <input class="form-control" type="file" id="csvFileProfit" accept=".csv">
+    </div>     
+    <button id="processBtn" class="btn btn-primary">Xử lý và Gửi Dữ liệu ⚙️</button>
+
+    <hr>
+
+    <div id="result" class="mt-3"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<script>
+    
+    document.getElementById('processBtn').addEventListener('click', async () => {
+        const fileInputMarket = document.getElementById('csvFileMarket');
+        const fileInputBalance = document.getElementById('csvFileBalance');
+        const fileInputProfit = document.getElementById('csvFileProfit');
+        const resultDiv = document.getElementById('result');
+
+        if (fileInputMarket.files.length === 0 && fileInputBalance.files.length === 0 && fileInputProfit.files.length === 0) {
+            resultDiv.innerHTML = `<div class="alert alert-warning">Vui lòng chọn ít nhất một file.</div>`;
+            return;
+        }
+
+
+        // Xử lý file Thị trường
+        const filemarket = fileInputMarket.files[0];
+        resultDiv.innerHTML = `<div class="alert alert-info">Đang đọc và xử lý file Thị trường...</div>`;
+        // xử lí file bảng cân đối kế toán
+        const filebalance = fileInputBalance.files[0];
+        resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng CĐKT...</div>`;
+        // xử lí file bảng kết quả kinh doanh
+        const fileprofit = fileInputProfit.files[0];
+        resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng KQKD...</div>`;
+
+        //============================================= Streaming xử lý tải file lớn (bảng cân đối kế toán)===============================================================
+        // Hàm helper để gửi 1 lô dữ liệu lên server
+            async function sendBatch(dataToSend) {
+                if (dataToSend.length === 0) return;
+
+                resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${rowCounter} dòng. Đang gửi lô ${dataToSend.length} dòng lên server...</div>`;
+                
+                try {
+                    // URL này phải khớp với URL của view xử lý HÀNG LOẠT (list)
+                    const response = await fetch('/api/post_bangcandoiketoan_data/', { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify(dataToSend)
+                    });
+                    
+                    const data = await response.json();
+                    if (!response.ok) {
+                        // Nếu 1 lô bị lỗi, dừng toàn bộ quá trình
+                        throw new Error(`Lỗi server: ${data.message || 'Không rõ lỗi'}`);
+                    }
+                    console.log(`Gửi batch ${dataToSend.length} dòng thành công.`);
+                    
+                } catch (error) {
+                    console.error('Lỗi khi gửi batch:', error);
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi khi gửi batch: ${error.message}. Dừng xử lý.</div>`;
+                    // Dừng Papa Parse nếu có lỗi
+                    throw error; // Ném lỗi để dừng parser
+                }
+            }        
+        //============================================= Xử lý file market===============================================================
+        if (fileInputMarket.files.length > 0) {
+            // 1. Dùng Papa Parse để đọc và phân tích file CSV
+            Papa.parse(filemarket, {        
+                header: true, // Rất quan trọng: dòng đầu tiên sẽ là key của object
+                skipEmptyLines: true,
+                complete: async function(results) {
+                console.log("Dữ liệu gốc từ CSV:", results.data);
+
+                // 2. Chuyển đổi dữ liệu để khớp với model Django
+                const processedData = results.data.map(row => {
+                    // Dọn dẹp và chuyển đổi kiểu dữ liệu
+                    const cleanValue = (val) => val ? val.toString().trim().replace(/,/g, '') : '';
+                    const toInt = (val) => val ? parseInt(cleanValue(val), 10) : null;
+                    const toFloat = (val) => val ? parseFloat(cleanValue(val)) : null;
+
+                    // Chuyển đổi ngày từ DD/MM/YYYY sang YYYY-MM-DD
+                    let formattedDate = null;
+                    if (row.Ngày) {
+                        const parts = row.Ngày.split('/');
+                        if (parts.length === 3) {
+                            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                        }
+                    }
+
+                    return {
+                        // Key bên trái là tên trường trong model Django
+                        // Key bên phải là tên cột trong file CSV (từ header)
+                        ngay: formattedDate,
+                        congTy: row.Ma ? row.Ma.trim().toUpperCase() : null,
+                        giaDongCua: toFloat(row['Giá (nghìn VNĐ)_Đóng cửa']),
+                        giaDieuChinh: toFloat(row['Giá (nghìn VNĐ)_Điều chỉnh']),
+                        thayDoi: toFloat(row['Thay đổi']),
+                        klKhopLenh: toInt(row['GD khớp lệnh_Khối lượng']),
+                        gtKhopLenh: toFloat(row['GD khớp lệnh_Giá trị (tỷ VNĐ)']),
+                        klThoaThuan: toInt(row['GD thỏa thuận_Khối lượng']),
+                        gtThoaThuan: toFloat(row['GD thỏa thuận_Giá trị (tỷ VNĐ)']),
+                        giaMoCua: toFloat(row['Giá (nghìn VNĐ)_Mở cửa']),
+                        giaCaoNhat: toFloat(row['Giá (nghìn VNĐ)_Cao nhất']),
+                        giaThapNhat: toFloat(row['Giá (nghìn VNĐ)_Thấp nhất']),
+                    };
+                }).filter(item => item.congTy && item.ngay); // Lọc bỏ các dòng không hợp lệ
+
+                if (processedData.length === 0) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Không tìm thấy dữ liệu hợp lệ trong file.</div>`;
+                    return;
+                }
+
+                console.log("Dữ liệu đã xử lý:", processedData);
+                resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${processedData.length} dòng. Đang gửi lên server...</div>`;
+
+                // 3. Gửi mảng JSON đã xử lý lên server
+                try {
+                    const response = await fetch('/api/post_thitruong_data/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify(processedData)
+                    });
+                    
+                    const data = await response.json();
+                    const alertClass = response.ok ? 'alert-success' : 'alert-danger';
+                    resultDiv.innerHTML = `<div class="alert ${alertClass}">${data.message}</div>`;
+
+                } catch (error) {
+                    console.error('Lỗi khi gửi dữ liệu:', error);
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
+                }
+            },
+            error: function(error) {
+                console.error("Lỗi khi parse CSV:", error);
+                resultDiv.innerHTML = `<div class="alert alert-danger">Không thể đọc file CSV. Vui lòng kiểm tra định dạng file.</div>`;
+            }
+        });
+        }
+
+
+
+        //=============================================== Xử lý file Bảng CĐKT===============================================================
+        if (fileInputBalance.files.length > 0) { 
+        Papa.parse(filebalance, {
+            header: true,
+            skipEmptyLines: true,
+            Worker: true,
+            transformHeader: function(header) {
+                const h = header.trim();
+                // --- BẢN ĐỒ ÁNH XẠ ĐẦY ĐỦ ---
+                const headerMap = {
+                    // Định danh
+                    'ma': 'ma',
+                    'years': 'years',
+                    'Quý': 'quy',
+
+                    // Tài sản ngắn hạn
+                    'A TÀI SẢN NGẮN HẠN': 'taiSanNganHan',
+                    'Tiền và các khoản tương đương tiền': 'tienVaCacKhoanTuongDuongTien',
+                    'Tiền': 'tien',
+                    'Các khoản tương đương tiền': 'cacKhoanTuongDuongTien',
+                    'Các khoản đầu tư tài chính ngắn hạn': 'cacKhoanDauTuTaiChinhNganHan',
+                    'Chứng khoán kinh doanh': 'chungKhoanKinhDoanh',
+                    'Dự phòng giảm giá chứng khoán kinh doanh': 'duPhongGiamGiaChungKhoanKinhDoanh',
+                    'Đầu tư nắm giữ đến ngày đáo hạn': 'dauTuNamGiuDenNgayDaoHanNH',
+                    'Các khoản phải thu ngắn hạn': 'cacKhoanPhaiThuNganHan',
+                    'Phải thu ngắn hạn của khách hàng': 'phaiThuNganHanCuaKhachHang',
+                    'Trả trước cho người bán ngắn hạn': 'traTruocChoNguoiBanNganHan',
+                    'Phải thu nội bộ ngắn hạn': 'phaiThuNoiBoNganHan',
+                    'Phải thu theo tiến độ kế hoạch hợp đồng xây dựng': 'phaiThuTheoTienDoKeHoachHopDongXayDung',
+                    'Phải thu về cho vay ngắn hạn': 'phaiThuVeChoVayNganHan',
+                    'Phải thu ngắn hạn khác': 'phaiThuNganHanKhac',
+                    'Dự phòng phải thu ngắn hạn khó đòi': 'duPhongPhaiThuNganHanKhoDoi',
+                    'Tài sản Thiếu chờ xử lý': 'taiSanThieuChoXuLy',
+                    'Hàng tồn kho': 'hangTonKho',
+                    'Dự phòng giảm giá hàng tồn kho': 'duPhongGiamGiaHangTonKho',
+                    'Tài sản ngắn hạn khác': 'taiSanNganHanKhac',
+                    'Chi phí trả trước ngắn hạn': 'chiPhiTraTruocNganHan',
+                    'Thuế GTGT được khấu trừ': 'thueGTGTDuocKhauTru',
+                    'Thuế và các khoản khác phải thu Nhà nước': 'thueVaCacKhoanKhacPhaiThuNhaNuoc',
+                    'Giao dịch mua bán lại trái phiếu Chính phủ': 'giaoDichMuaBanLaiTraiPhieuChinhPhu',
+
+                    // Tài sản dài hạn
+                    'TÀI SẢN DÀI HẠN': 'taiSanDaiHan',
+                    'Các khoản phải thu dài hạn': 'cacKhoanPhaiThuDaiHan',
+                    'Phải thu dài hạn của khách hàng': 'phaiThuDaiHanCuaKhachHang',
+                    'Trả trước cho người bán dài hạn': 'traTruocChoNguoiBanDaiHan',
+                    'Vốn kinh doanh ở đơn vị trực thuộc': 'vonKinhDoanhODonViTrucThuoc',
+                    'Phải thu nội bộ dài hạn': 'phaiThuNoiBoDaiHan',
+                    'Phải thu về cho vay dài hạn': 'phaiThuVeChoVayDaiHan',
+                    'Phải thu dài hạn khác': 'phaiThuDaiHanKhac',
+                    'Dự phòng phải thu dài hạn khó đòi': 'duPhongPhaiThuDaiHanKhoDoi',
+                    'Tài sản cố định': 'taiSanCoDinh',
+                    'Tài sản cố định hữu hình': 'taiSanCoDinhHuuHinh',
+                    'Nguyên giá': 'nguyenGia',
+                    'Giá trị hao mòn lũy kế': 'giaTriHaoMonLuyKe',
+                    'Tài sản cố định thuê tài chính': 'taiSanCoDinhThueTaiChinh',
+                    'Tài sản cố định vô hình': 'taiSanCoDinhVoHinh',
+                    'Bất động sản đầu tư': 'batDongSanDauTu',
+                    'Tài sản dở dang dài hạn': 'taiSanDoDangDaiHan',
+                    'Chi phí sản xuất kinh doanh dở dang dài hạn': 'chiPhiSanXuatKinhDoanhDoDangDaiHan',
+                    'Chi phí xây dựng cơ bản dở dang': 'chiPhiXayDungCoBanDoDang',
+                    'Đầu tư tài chính dài hạn': 'dauTuTaiChinhDaiHan',
+                    'Đầu tư vào công ty con': 'dauTuVaoCongTyCon',
+                    'Đầu tư vào công ty liên kết liên doanh': 'dauTuVaoCongTyLienKetLienDoanh',
+                    'Đầu tư góp vốn vào đơn vị khác': 'dauTuGopVonVaoDonViKhac',
+                    'Dự phòng đầu tư tài chính dài hạn': 'duPhongDauTuTaiChinhDaiHan',
+                    'Tài sản dài hạn khác': 'taiSanDaiHanKhac',
+                    'Chi phí trả trước dài hạn': 'chiPhiTraTruocDaiHan',
+                    'Tài sản thuế thu nhập hoãn lại': 'taiSanThueThuNhapHoanLai',
+                    'Thiết bị vật tư phụ tùng thay thế dài hạn': 'thietBiVatTuPhuTungThayTheDaiHan',
+                    'Lợi thế thương mại': 'loiTheThuongMai',
+                    'TỔNG CỘNG TÀI SẢN': 'tongCongTaiSan',
+
+                    // Nợ phải trả
+                    'NỢ PHẢI TRẢ': 'noPhaiTra',
+                    'Nợ ngắn hạn': 'noNganHan',
+                    'Phải trả người bán ngắn hạn': 'phaiTraNguoiBanNganHan',
+                    'Người mua trả tiền trước ngắn hạn': 'nguoiMuaTraTienTruocNganHan',
+                    'Thuế và các khoản phải nộp nhà nước': 'thueVaCacKhoanPhaiNopNhaNuoc',
+                    'Phải trả người lao động': 'phaiTraNguoiLaoDong',
+                    'Chi phí phải trả ngắn hạn': 'chiPhiPhaiTraNganHan',
+                    'Phải trả nội bộ ngắn hạn': 'phaiTraNoiBoNganHan',
+                    'Phải trả theo tiến độ kế hoạch hợp đồng xây dựng': 'phaiTraTheoTienDoKeHoachHopDongXayDungNH',
+                    'Doanh thu chưa thực hiện ngắn hạn': 'doanhThuChuaThucHienNganHan',
+                    'Phải trả ngắn hạn khác': 'phaiTraNganHanKhac',
+                    'Vay và nợ thuê tài chính ngắn hạn': 'vayVaNoThueTaiChinhNganHan',
+                    'Dự phòng phải trả ngắn hạn': 'duPhongPhaiTraNganHan',
+                    'Quỹ khen thưởng phúc lợi': 'quyKhenThuongPhucLoi',
+                    'Quỹ bình ổn giá': 'quyBinhOnGia',
+                    'Nợ dài hạn': 'noDaiHan',
+                    'Phải trả người bán dài hạn': 'phaiTraNguoiBanDaiHan',
+                    'Người mua trả tiền trước dài hạn': 'nguoiMuaTraTienTruocDaiHan',
+                    'Chi phí phải trả dài hạn': 'chiPhiPhaiTraDaiHan',
+                    'Phải trả nội bộ về vốn kinh doanh': 'phaiTraNoiBoVeVonKinhDoanh',
+                    'Phải trả nội bộ dài hạn': 'phaiTraNoiBoDaiHan',
+                    'Doanh thu chưa thực hiện dài hạn': 'doanhThuChuaThucHienDaiHan',
+                    'Phải trả dài hạn khác': 'phaiTraDaiHanKhac',
+                    'Vay và nợ thuê tài chính dài hạn': 'vayVaNoThueTaiChinhDaiHan',
+                    'Trái phiếu chuyển đổi': 'traiPhieuChuyenDoi',
+                    'Cổ phiếu ưu đãi': 'coPhieuUuDai',
+                    'Thuế thu nhập hoãn lại phải trả': 'thueThuNhapHoanLaiPhaiTra',
+                    'Dự phòng phải trả dài hạn': 'duPhongPhaiTraDaiHan',
+                    'Quỹ phát triển khoa học và công nghệ': 'quyPhatTrienKhoaHocVaCongNghe',
+
+                    // Vốn chủ sở hữu
+                    'VỐN CHỦ SỞ HỮU': 'vonChuSoHuu',
+                    'Vốn chủ sở hữu': 'vonChuSoHuuCon',
+                    'Vốn góp của chủ sở hữu': 'vonGopCuaChuSoHuu',
+                    'Thặng dư vốn cổ phần': 'thangDuVonCoPhan',
+                    'Quyền chọn chuyển đổi trái phiếu': 'quyenChonChuyenDoiTraiPhieu',
+                    'Vốn khác của chủ sở hữu': 'vonKhacCuaChuSoHuu',
+                    'Cổ phiếu quỹ': 'coPhieuQuy',
+                    'Chênh lệch đánh giá lại tài sản': 'chenhLechDanhGiaLaiTaiSan',
+                    'Chênh lệch tỷ giá hối đoái': 'chenhLechTyGiaHoiDoai',
+                    'Quỹ đầu tư phát triển': 'quyDauTuPhatTrien',
+                    'Quỹ hỗ trợ sắp xếp doanh nghiệp': 'quyHoTroSapXepDoanhNghiep',
+                    'Quỹ khác thuộc vốn chủ sở hữu': 'quyKhacThuocVonChuSoHuu',
+                    'Lợi nhuận sau thuế chưa phân phối': 'loiNhuanSauThueChuaPhanPhoi',
+                    'Nguồn vốn đầu tư XDCB': 'nguonVonDauTuXDCB',
+                    'Lợi ích cổ đông không kiểm soát': 'loiIchCoDongKhongKiemSoat',
+                    'Nguồn kinh phí và quỹ khác': 'nguonKinhPhiVaQuyKhac',
+                    'Nguồn kinh phí': 'nguonKinhPhi',
+                    'Nguồn kinh phí đã hình thành TSCĐ': 'nguonKinhPhiDaHinhThanhTSCD',
+                    'TỔNG CỘNG NGUỒN VỐN': 'tongCongNguonVon'
+                };
+                return headerMap[h] || h;
+            },
+            complete: async function(results) {
+                // Phần code xử lý và gửi dữ liệu giữ nguyên như cũ
+                const toInt = (val) => val ? parseInt(val.toString().trim().replace(/,/g, ''), 10) || 0 : 0;
+                console.log("Dữ liệu gốc từ CSV Bảng CĐKT:", results.data);
+                
+                const processedData = results.data.map(row => {
+                    for (const key in row) {
+                        if (key !== 'ma') { // Giữ nguyên 'ma' là chuỗi
+                            row[key] = toInt(row[key]);
+                        } else {
+                             row[key] = row[key] ? row[key].trim().toUpperCase() : null;
+                        }
+                    }
+                    return row;
+                }).filter(item => item.ma && item.years && item.quy !== null);
+
+                console.log("Dữ liệu đã xử lý Bảng CĐKT:", processedData);
+                if (processedData.length === 0) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Không tìm thấy dữ liệu hợp lệ trong file Bảng CĐKT.</div>`;
+                    return;
+                }
+                
+                resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${processedData.length} dòng. Đang gửi lên server...</div>`;
+                
+                try {
+                    const response = await fetch('/api/post_bangcandoiketoan_data/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify(processedData)
+                    });
+                    
+                    const data = await response.json();
+                    const alertClass = response.ok ? 'alert-success' : 'alert-danger';
+                    let message = `<div>${data.message}</div>`;
+                    if (data.errors && data.errors.length > 0) {
+                        message += '<ul>' + data.errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
+                    }
+                    resultDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
+                }
+            },
+            error: function(error) {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Không thể đọc file CSV. Vui lòng kiểm tra định dạng file.</div>`;
+            }
+        });
+        }
+        //=============================================== Xử lý file Bảng KQKD===============================================================
+        if (fileInputProfit.files.length > 0) {
+        Papa.parse(fileprofit, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: function(header) {
+                const h = header.trim();
+                const headerMap = {
+                    // Định danh
+                    'ma': 'ma',
+                    'years': 'years',
+                    'Quý': 'quy',
+
+                    // Các chỉ tiêu KQKD
+                    'Doanh thu bán hàng và cung cấp dịch vụ': 'doanhThuBanHangVaCungCapDichVu',
+                    'Các khoản giảm trừ doanh thu': 'cacKhoanGiamTruDoanhThu',
+                    'Doanh thu thuần về bán hàng và cung cấp dịch vụ': 'doanhThuThuan',
+                    'Giá vốn hàng bán': 'giaVonHangBan',
+                    'Lợi nhuận gộp về bán hàng và cung cấp dịch vụ': 'loiNhuanGop',
+                    'Doanh thu hoạt động tài chính': 'doanhThuHoatDongTaiChinh',
+                    'Chi phí tài chính': 'chiPhiTaiChinh',
+                    'Trong đó Chi phí lãi vay': 'trongDoChiPhiLaiVay',
+                    'Phần lãi lỗ trong công ty liên doanh liên kết': 'phanLaiLoTrongCongTyLienDoanhLienKet',
+                    'Chi phí bán hàng': 'chiPhiBanHang',
+                    'Chi phí quản lý doanh nghiệp': 'chiPhiQuanLyDoanhNghiep',
+                    'Lợi nhuận thuần từ hoạt động kinh doanh': 'loiNhuanThuanTuHoatDongKinhDoanh',
+                    'Thu nhập khác': 'thuNhapKhac',
+                    'Chi phí khác': 'chiPhiKhac',
+                    'Lợi nhuận khác': 'loiNhuanKhac',
+                    'Tổng lợi nhuận kế toán trước thuế': 'tongLoiNhuanKeToanTruocThue',
+                    'Chi phí thuế TNDN hiện hành': 'chiPhiThueTNDNHienHanh',
+                    'Chi phí thuế TNDN hoãn lại': 'chiPhiThueTNDNHoanLai',
+                    'Lợi nhuận sau thuế thu nhập doanh nghiệp': 'loiNhuanSauThueThuNhapDoanhNghiep'
+                };
+                return headerMap[h] || h;
+            },
+            complete: async function(results) {
+                const toInt = (val) => val ? parseInt(val.toString().trim().replace(/,/g, ''), 10) || 0 : 0;
+
+                const processedData = results.data.map(row => {
+                    for (const key in row) {
+                        if (key !== 'ma') { // Giữ nguyên 'ma' là chuỗi
+                            row[key] = toInt(row[key]);
+                        } else {
+                             row[key] = row[key] ? row[key].trim().toUpperCase() : null;
+                        }
+                    }
+                    return row;
+                }).filter(item => item.ma && item.years && item.quy !== null);
+
+                if (processedData.length === 0) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Không tìm thấy dữ liệu hợp lệ trong file Bảng KQKD.</div>`;
+                    return;
+                }
+                
+                resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${processedData.length} dòng. Đang gửi lên server...</div>`;
+                
+                try {
+                    const response = await fetch('/api/post_bangketquakinhdoanh_data/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify(processedData)
+                    });
+                    
+                    const data = await response.json();
+                    const alertClass = response.ok ? 'alert-success' : 'alert-danger';
+                    let message = `<div>${data.message}</div>`;
+                    if (data.errors && data.errors.length > 0) {
+                        message += '<ul>' + data.errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
+                    }
+                    resultDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
+                }
+            },
+            error: function(error) {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Không thể đọc file CSV. Vui lòng kiểm tra định dạng file.</div>`;
+            }
+        });
+        }
+    });
+</script>
+{% endblock %}

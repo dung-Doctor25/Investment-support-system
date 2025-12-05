@@ -1,0 +1,82 @@
+{% extends "main.html" %}
+{% load static %}
+{% block content %}
+
+<head>
+    <title>Sức Khỏe Tài Chính Doanh Nghiệp</title>
+    <link rel="stylesheet" href="{% static 'css/chart_d3.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-left">
+                <h1>ĐÁNH GIÁ HIỆU SUẤT VÀ ĐẦU TƯ</h1>
+                <p>Hỗ trợ tư vấn đầu tư - Số năm thu thập dữ liệu: <strong><span id="total-year-collected"></span></strong></p>
+            </div>
+            <div class="header-right">
+                <div class="filter-group">
+                    <label>Mã cổ phiếu</label>
+                    <select class="dark-select" id="stock-select">
+                        
+                    </select>
+                </div>              
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            
+            <div class="column-kpi">
+                <div class="card kpi-card">
+                    <div class="card-title">PE</div>
+                    <div id="kpi-pe" class="chart-container"></div>
+                </div>
+
+                <div class="card kpi-card">
+                    <div class="card-title">PB</div>
+                    <div id="kpi-pb" class="chart-container"></div>
+                </div>
+
+                <div class="card kpi-card">
+                    <div class="card-title">Tỷ lệ Nợ Dài Hạn</div>
+                    <div id="kpi-tyle-no-dai-han" class="chart-container"></div>
+                </div>
+            </div>
+
+            <div class="column-middle">
+                <div class="card chart-card">
+                    <div class="card-title">Tỷ lệ Giá trên Lợi nhuận</div>
+                    <div id="chart-pe" class="chart-container main-chart-area"></div>
+                </div>
+
+                <div class="card chart-card">
+                    <div class="">
+                        <div class="card-title">Chỉ số Giá/Giá trị sổ sách</div>
+                    </div>
+                    <div id="chart-pb" class="chart-container main-chart-area"></div>
+                </div>
+            </div>
+
+            <div class="column-right">
+                <div class="card chart-card">
+                  
+                    <div class="card-title">Lợi nhuận trên mỗi cổ phiếu</div>
+        
+                    <div id="chart-eps" class="chart-container main-chart-area"></div>
+                </div>
+
+                <div class="card chart-card">                 
+                    <div class="card-title">Tỷ lệ Nợ Dài Hạn qua các năm</div>
+                    <div id="chart-tyle-no-dai-han" class="chart-container main-chart-area"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="{% static 'js/chart_hieu_suat.js' %}"></script>
+</html>
+{% endblock %}

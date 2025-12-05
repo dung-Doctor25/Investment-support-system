@@ -1,0 +1,87 @@
+{% extends "main.html" %}
+{% load static %}
+{% block content %}
+
+<head>
+    <title>Sức Khỏe Tài Chính Doanh Nghiệp</title>
+    <link rel="stylesheet" href="{% static 'css/chart_d3.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-left">
+                <h1>SỨC KHOẺ TÀI CHÍNH DOANH NGHIỆP</h1>
+                <p>Hỗ trợ tư vấn đầu tư - Số năm thu thập dữ liệu: <strong><span id="total-year-collected"></span></strong></p>
+            </div>
+            <div class="header-right">
+                <div class="filter-group">
+                    <label>Mã cổ phiếu</label>
+                    <select class="dark-select" id="stock-select">
+                        
+                    </select>
+                </div>              
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            
+            <div class="column-kpi">
+                <div class="card kpi-card">
+                    <div class="card-title">ROA</div>
+                    <div id="kpi-roa" class="chart-container"></div>
+                </div>
+
+                <div class="card kpi-card">
+                    <div class="card-title">ROE</div>
+                    <div id="kpi-roe" class="chart-container"></div>
+                </div>
+
+                <div class="card kpi-card">
+                    <div class="card-title">Current Ratio</div>
+                    <div id="kpi-current-ratio" class="chart-container"></div>
+                </div>
+
+                <div class="card kpi-card">
+                    <div class="card-title">Dept</div>
+                    <div id="kpi-dept" class="chart-container"></div>
+                </div>
+            </div>
+
+            <div class="column-middle">
+                <div class="card chart-card">
+                    <div class="card-title">ROA - ROE</div>
+                    <div id="chart-roa-roe" class="chart-container main-chart-area"></div>
+                </div>
+
+                <div class="card chart-card">
+                    <div class="">
+                        <div class="card-title">Phân tích Thanh khoản</div>
+                    </div>
+                    <div id="chart-liquidity" class="chart-container main-chart-area"></div>
+                </div>
+            </div>
+
+            <div class="column-right">
+                <div class="card chart-card">
+                  
+                    <div class="card-title">Cơ cấu Tổng tài sản và Nợ phải trả</div>
+        
+                    <div id="chart-assets" class="chart-container main-chart-area"></div>
+                </div>
+
+                <div class="card chart-card">                 
+                    <div class="card-title">Tăng trưởng Tài sản và Lợi nhuận</div>
+                    <div id="chart-growth" class="chart-container main-chart-area"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="{% static 'js/chart.js' %}"></script>
+</html>
+{% endblock %}

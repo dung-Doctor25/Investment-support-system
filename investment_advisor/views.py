@@ -1,0 +1,670 @@
+from django.shortcuts import render
+from .models import *
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
+from .gemini_utils import get_financial_ratios_data # Import hàm vừa tách
+import openpyxl
+from django.http import HttpResponse
+
+
+
+def home(request):
+    market_data = ThiTruongChungKhoang.objects.all()[:5]
+    for obj in market_data:
+        print(obj.__dict__, flush=True)
+    return render(request, 'home.html')
+
+def congty_form(request):
+    return render(request, "form/congty_post_form.html")
+def thitruong_form(request):
+    return render(request, "form/thitruong_form.html")
+def tonghoptaichinh_form(request):
+    return render(request, "form/tonghoptaichinh_post_form.html")
+def bangcandoiketoan_form(request):
+    return render(request, "form/bangcandoiketoan_post_form.html")
+def bangketquakinhdoanh_form(request):
+    return render(request, "form/bangketquakinhdoanh_post_form.html")
+
+def file_upload(request):
+    return render(request, "file/file_upload.html")
+def chat_view(request):
+    return render(request, 'chatbot.html')
+
+def chart_view(request):
+    return render(request, 'aggregated_data/chart_d3.html')
+def chart_view_2(request):
+    return render(request, 'aggregated_data/chart_hieu_suat.html')
+def tableau_view(request):
+    return render(request, 'aggregated_data/tableau.html')
+
+def table_view(request):
+    return render(request, 'aggregated_data/table.html')
+
+
+
+
+#==========================GET DATA METHOD===========================
+def get_CongTy_data(request):
+    data = list(CongTy.objects.values())
+    return JsonResponse(data, safe=False)
+def get_TongHopTaiChinh_data(request):
+    data = list(TongHopTaiChinh.objects.values())
+    return JsonResponse(data, safe=False)
+def get_ThiTruongChungKhoan_data(request):
+    data = list(ThiTruongChungKhoang.objects.values())
+    return JsonResponse(data, safe=False)
+def get_BangCanDoiKeToan_data(request):
+    data = list(BangCanDoiKeToan.objects.values())
+    return JsonResponse(data, safe=False)
+def get_BangKetQuaKinhDoanh_data(request):
+    data = list(BangKetQuaKinhDoanh.objects.values())
+    return JsonResponse(data, safe=False)
+
+
+
+#==========================DOWNLOAD DATA===========================
+
+
+# View Export Excel Mới (Đầy đủ chỉ số)
+def export_financial_ratios_excel(request):
+    # 1. Lấy dữ liệu đã tính toán từ utils
+    data = get_financial_ratios_data()
+    
+    if data is None:
+        return HttpResponse("Không có dữ liệu để xuất.", status=404)
+
+    # 2. Tạo Workbook Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Chỉ Số Tài Chính"
+
+    # 3. Ghi Header (Đầy đủ các cột)
+    headers = [
+        "Mã Cổ Phiếu", 
+        "Tên Công Ty", 
+        "Số Năm Thu Thập", 
+        "Năm",
+        "ROA", 
+        "ROE", 
+        "Tỷ Suất Thanh Toán Hiện Hành", # Current Ratio
+        "Hệ Số Nợ / Tổng Tài Sản",      # Debt/Assets
+        "Tăng Trưởng Tài Sản", 
+        "Tăng Trưởng Lợi Nhuận",
+        "EPS", 
+        "P/E", 
+        "P/B", 
+        "Beta", 
+        "Giá Đóng Cửa Cuối Năm", 
+        "Tỷ Lệ Nợ Dài Hạn"
+    ]
+    ws.append(headers)
+
+    # 4. Duyệt dữ liệu và ghi vào Excel
+    for company_code, company_info in data.items():
+        ten_cong_ty = company_info['tenCongTy']
+        tong_nam = company_info['TongSoNamThuThap']
+        reports = company_info['annual_reports']
+
+        # Sắp xếp theo năm tăng dần
+        sorted_years = sorted(reports.keys())
+
+        for year in sorted_years:
+            metrics = reports[year]
+            
+            # Bỏ qua nếu metrics là chuỗi thông báo lỗi (nếu có)
+            if isinstance(metrics, str): 
+                continue
+
+            row = [
+                company_code,
+                ten_cong_ty,
+                tong_nam,
+                year,
+                metrics.get("ROA"),
+                metrics.get("ROE"),
+                metrics.get("TySuatThanhToanHienHanh"),
+                metrics.get("HeSoNoTrenTongTaiSan"),
+                metrics.get("TangTruongTaiSan"),
+                metrics.get("TangTruongLoiNhuan"),
+                metrics.get("EPS"),
+                metrics.get("PE"),
+                metrics.get("PB"),
+                metrics.get("Beta"),
+                metrics.get("GiaDongCuaCuoiNam"),
+                metrics.get("TyLeNoDaiHan")
+            ]
+            ws.append(row)
+
+    # 5. Thiết lập HTTP Response để tải file
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=BaoCaoChiSoTaiChinh.xlsx'
+    
+    wb.save(response)
+    return response
+#==========================POST DATA METHOD===========================
+
+@require_POST
+def post_congty_data(request):
+    try:
+        data = json.loads(request.body)
+        congty = CongTy.objects.create(
+            tenCongTy=data.get("tenCongTy"),
+            nganh=data.get("nganh"),
+            maChungKhoan=data.get("maChungKhoan"),
+        )
+        return JsonResponse({"message": f"Đã thêm công ty: {congty.tenCongTy}"}, status=201)
+    except Exception as e:
+        return JsonResponse({"message": f"Lỗi: {str(e)}"}, status=400)
+
+
+  
+def post_thitruong_data(request):
+    try:
+        data = json.loads(request.body)
+        if isinstance(data, dict):  # 🧠 Nếu chỉ có 1 bản ghi
+            data = [data]
+
+        created_records = []
+        for record_data in data:
+            cong_ty, _ = CongTy.objects.get_or_create(
+                maChungKhoan=record_data["congTy"],
+                defaults={
+                    "tenCongTy": record_data.get("tenCongTy", record_data["congTy"]),
+                    "nganh": record_data.get("nganh", None),
+                }
+            )
+
+            record = ThiTruongChungKhoang(
+                congTy=cong_ty,
+                ngay=record_data["ngay"],
+                giaDongCua=record_data["giaDongCua"],
+                giaDieuChinh=record_data["giaDieuChinh"],
+                thayDoi=record_data["thayDoi"],
+                klKhopLenh=record_data["klKhopLenh"],
+                gtKhopLenh=record_data["gtKhopLenh"],
+                klThoaThuan=record_data.get("klThoaThuan"),
+                gtThoaThuan=record_data.get("gtThoaThuan"),
+                giaMoCua=record_data["giaMoCua"],
+                giaCaoNhat=record_data["giaCaoNhat"],
+                giaThapNhat=record_data["giaThapNhat"],
+            )
+            created_records.append(record)
+
+        ThiTruongChungKhoang.objects.bulk_create(created_records)
+
+        return JsonResponse({
+            "message": f"Đã thêm {len(created_records)} bản ghi thành công!"
+        }, status=201)
+
+    except Exception as e:
+        return JsonResponse({"message": f"Lỗi: {str(e)}"}, status=400)
+
+
+@require_POST
+def post_tonghoptaichinh_data(request):
+    if request.method == "POST":
+        body = json.loads(request.body)
+        ma_cty = body.get("congTy")
+        nam = body.get("nam")
+        quy = body.get("quy")
+
+        try:
+            congty = CongTy.objects.get(maChungKhoan=ma_cty)
+            record = TongHopTaiChinh.objects.create(
+                congTy=congty, nam=nam, quy=quy
+            )
+            return JsonResponse({
+                "message": f"Đã tạo mới báo cáo cho {ma_cty} năm {nam}, quý {quy}"
+            })
+        except CongTy.DoesNotExist:
+            return JsonResponse({"message": "Công ty không tồn tại!"}, status=400)
+
+    return JsonResponse({"message": "Phương thức không hợp lệ!"}, status=405)
+
+
+@require_POST
+def post_bangcandoiketoan_data(request):
+
+    try:
+        data = json.loads(request.body)
+
+        # ==========================================================
+        # TRƯỜNG HỢP 1: DỮ LIỆU HÀNG LOẠT (TỪ FILE CSV)
+        # ==========================================================
+        if isinstance(data, list):
+            bcdt_to_create = []
+            errors = []
+
+            for index, item in enumerate(data):
+                try:
+                    ma_chung_khoan = item.get('ma')
+                    nam = item.get('years')
+                    quy = item.get('quy')
+                    
+                    if not ma_chung_khoan or nam is None or quy is None:
+                        errors.append(f"Dòng {index + 1}: Thiếu 'ma', 'years', hoặc 'quy'. Bỏ qua.")
+                        continue
+
+                    # 1. Lấy hoặc tạo CongTy
+                    cong_ty_instance, _ = CongTy.objects.get_or_create(
+                        maChungKhoan=ma_chung_khoan.upper(),
+                        defaults={'tenCongTy': f"Công ty {ma_chung_khoan.upper()}"}
+                    )
+                    # 2. Lấy hoặc tạo TongHopTaiChinh
+                    tong_hop_instance, _ = TongHopTaiChinh.objects.get_or_create(
+                        congTy=cong_ty_instance,
+                        nam=nam,
+                        quy=quy
+                    )
+                    
+                    item.pop('ma', None); item.pop('years', None); item.pop('quy', None)
+
+                    # 3. Chuẩn bị đối tượng (chưa lưu)
+                    bcdt_object = BangCanDoiKeToan(baoCao=tong_hop_instance, **item)
+                    bcdt_to_create.append(bcdt_object)
+                
+                except Exception as e:
+                    errors.append(f"Dòng {index + 1} (Mã: {item.get('ma')}): Lỗi - {str(e)}")
+
+            # 4. Lưu hàng loạt
+            if bcdt_to_create:
+                BangCanDoiKeToan.objects.bulk_create(bcdt_to_create, ignore_conflicts=True)
+            
+            message = f"Hoàn tất xử lý HÀNG LOẠT! Đã gửi {len(bcdt_to_create)} bản ghi. Lỗi: {len(errors)}."
+            return JsonResponse({'message': message, 'errors': errors}, status=200)
+
+        # ==========================================================
+        # TRƯỜNG HỢP 2: DỮ LIỆU LẺ (TỪ FORM NHẬP TAY)
+        # ==========================================================
+        elif isinstance(data, dict):
+            # 1. Lấy ID báo cáo trực tiếp
+            bao_cao_id = data.get('baoCao')
+            if not bao_cao_id:
+                return JsonResponse({'message': 'Lỗi: Dữ liệu lẻ thiếu "baoCao" ID.'}, status=400)
+
+            # 2. Tìm TongHopTaiChinh
+            try:
+                tong_hop_instance = TongHopTaiChinh.objects.get(pk=bao_cao_id)
+            except TongHopTaiChinh.DoesNotExist:
+                return JsonResponse({'message': f'Lỗi: Không tìm thấy Báo cáo tài chính với ID {bao_cao_id}.'}, status=404)
+            
+            # 3. Chuẩn bị dữ liệu (loại bỏ key 'baoCao')
+            del data['baoCao']
+            for key, value in data.items():
+                if value == '': data[key] = None
+
+            # 4. Dùng update_or_create để cập nhật hoặc tạo mới
+            bcdt_object, created = BangCanDoiKeToan.objects.update_or_create(
+                baoCao=tong_hop_instance,
+                defaults=data
+            )
+            
+            message = "Đã TẠO MỚI" if created else "Đã CẬP NHẬT"
+            status_code = 201 if created else 200
+            return JsonResponse({'message': f"{message} thành công Bảng CĐKT cho {tong_hop_instance}."}, status=status_code)
+        
+        # Trường hợp không phải list hoặc dict
+        else:
+            return JsonResponse({'message': 'Lỗi: Dữ liệu phải là một object {} hoặc một mảng [{}].'}, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'message': 'Lỗi: Dữ liệu JSON không hợp lệ.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'message': f'Đã xảy ra lỗi nghiêm trọng: {str(e)}'}, status=500)
+
+@require_POST
+def post_bangketquakinhdoanh_data(request):
+    
+    try:
+        data = json.loads(request.body)
+
+        # ==========================================================
+        # TRƯỜNG HỢP 1: DỮ LIỆU HÀNG LOẠT (TỪ FILE CSV)
+        # ==========================================================
+        if isinstance(data, list):
+            kqkd_to_create = []
+            errors = []
+
+            for index, item in enumerate(data):
+                try:
+                    ma_chung_khoan = item.get('ma')
+                    nam = item.get('years')
+                    quy = item.get('quy')
+                    
+                    if not ma_chung_khoan or nam is None or quy is None:
+                        errors.append(f"Dòng {index + 1}: Thiếu 'ma', 'years', hoặc 'quy'. Bỏ qua.")
+                        continue
+
+                    # 1. Lấy hoặc tạo CongTy
+                    cong_ty_instance, _ = CongTy.objects.get_or_create(
+                        maChungKhoan=ma_chung_khoan.upper(),
+                        defaults={'tenCongTy': f"Công ty {ma_chung_khoan.upper()}"}
+                    )
+                    # 2. Lấy hoặc tạo TongHopTaiChinh
+                    tong_hop_instance, _ = TongHopTaiChinh.objects.get_or_create(
+                        congTy=cong_ty_instance,
+                        nam=nam,
+                        quy=quy
+                    )
+                    
+                    item.pop('ma', None); item.pop('years', None); item.pop('quy', None)
+
+                    # 3. Chuẩn bị đối tượng (chưa lưu)
+                    kqkd_object = BangKetQuaKinhDoanh(baoCao=tong_hop_instance, **item)
+                    kqkd_to_create.append(kqkd_object)
+                
+                except Exception as e:
+                    errors.append(f"Dòng {index + 1} (Mã: {item.get('ma')}): Lỗi - {str(e)}")
+
+            # 4. Lưu hàng loạt
+            if kqkd_to_create:
+                BangKetQuaKinhDoanh.objects.bulk_create(kqkd_to_create, ignore_conflicts=True)
+            
+            message = f"Hoàn tất xử lý HÀNG LOẠT! Đã gửi {len(kqkd_to_create)} bản ghi KQKD. Lỗi: {len(errors)}."
+            return JsonResponse({'message': message, 'errors': errors}, status=200)
+
+        # ==========================================================
+        # TRƯỜNG HỢP 2: DỮ LIỆU LẺ (TỪ FORM NHẬP TAY)
+        # ==========================================================
+        elif isinstance(data, dict):
+            # 1. Lấy ID báo cáo trực tiếp
+            bao_cao_id = data.get('baoCao')
+            if not bao_cao_id:
+                return JsonResponse({'message': 'Lỗi: Dữ liệu lẻ thiếu "baoCao" ID.'}, status=400)
+
+            # 2. Tìm TongHopTaiChinh
+            try:
+                tong_hop_instance = TongHopTaiChinh.objects.get(pk=bao_cao_id)
+            except TongHopTaiChinh.DoesNotExist:
+                return JsonResponse({'message': f'Lỗi: Không tìm thấy Báo cáo tài chính với ID {bao_cao_id}.'}, status=404)
+            
+            # 3. Chuẩn bị dữ liệu (loại bỏ key 'baoCao' và chuẩn hóa giá trị rỗng)
+            del data['baoCao']
+            for key, value in data.items():
+                if value == '' or value is None:
+                    data[key] = None # Hoặc 0, tùy thuộc vào model, nhưng None an toàn hơn nếu model cho phép
+
+            # 4. Dùng update_or_create để cập nhật hoặc tạo mới
+            kqkd_object, created = BangKetQuaKinhDoanh.objects.update_or_create(
+                baoCao=tong_hop_instance,
+                defaults=data
+            )
+            
+            message = "Đã TẠO MỚI" if created else "Đã CẬP NHẬT"
+            status_code = 201 if created else 200
+            return JsonResponse({'message': f"{message} thành công Bảng KQKD cho {tong_hop_instance}."}, status=status_code)
+        
+        # Trường hợp không phải list hoặc dict
+        else:
+            return JsonResponse({'message': 'Lỗi: Dữ liệu phải là một object {} hoặc một mảng [{}].'}, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'message': 'Lỗi: Dữ liệu JSON không hợp lệ.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'message': f'Đã xảy ra lỗi nghiêm trọng: {str(e)}'}, status=500)
+
+
+
+# ==========================RETRIEVE QUERY METHOD===========================
+import time
+from django.db.models import Sum
+def retrieve_bangcandoikt(request):
+    try:
+        start_time = time.time()
+        print('hello', flush=True)
+        data = (
+            BangCanDoiKeToan.objects
+            .select_related('baoCao__congTy')  # nếu có quan hệ foreign key
+            .values('baoCao__congTy__tenCongTy')  # group by theo tên công ty
+            .annotate(tong_tai_san=Sum('tongCongTaiSan'))
+            .order_by('-tong_tai_san')
+        )
+        duration = time.time() - start_time
+
+        result = list(data)
+
+        return JsonResponse({
+            "message": f"Lấy dữ liệu thành công trong {duration:.2f} giây. giá trị: {result}."
+        }, status=200)
+    except:
+        return JsonResponse({"message": "Bảng cân đối kế toán không tồn tại!"}, status=404)
+
+
+# chatbot/views.py
+from django.views.decorators.http import require_POST
+
+@require_POST # Chỉ cho phép phương thức POST
+def save_message_view(request):
+    """
+    API View để lưu một tin nhắn (từ user hoặc bot) vào CSDL.
+    """
+    try:
+        # Lấy dữ liệu thô từ body của fetch
+        data = json.loads(request.body)
+        message_content = data.get('content')
+        sender = data.get('sender') # Sẽ là 'user' hoặc 'bot'
+
+        if not message_content or not sender:
+            return JsonResponse({'status': 'error', 'message': 'Thiếu content hoặc sender'}, status=400)
+
+        # --- Logic Session y hệt như trong Consumer ---
+        session = request.session
+        conversation_id = session.get('conversation_id')
+        
+        if conversation_id:
+            try:
+                conversation = Conversation.objects.get(id=conversation_id)
+            except Conversation.DoesNotExist:
+                # Nếu ID trong session bị sai, tạo cái mới
+                conversation = Conversation.objects.create()
+                session['conversation_id'] = conversation.id
+        else:
+            # Nếu chưa có, tạo mới
+            conversation = Conversation.objects.create()
+            session['conversation_id'] = conversation.id
+        
+        # Lưu session
+        session.save()
+        # --- Hết logic Session ---
+
+        # Tạo và lưu tin nhắn
+        Message.objects.create(
+            conversation=conversation,
+            sender=sender,
+            content=message_content
+        )
+        
+        return JsonResponse({'status': 'success', 'message': 'Đã lưu tin nhắn'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Dữ liệu JSON không hợp lệ'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+
+
+# Đặt hàm này ở đầu file view của bạn hoặc trong một file utils.py
+from decimal import Decimal, InvalidOperation
+
+def safe_divide(numerator, denominator):
+    """
+    Hàm chia an toàn, xử lý giá trị None và chia cho 0.
+    Tất cả dữ liệu tài chính của bạn là BigIntegerField hoặc DecimalField, 
+    nên chúng ta sẽ làm việc với Decimal để giữ độ chính xác.
+    """
+    if numerator is None or denominator is None:
+        return None
+    
+    # Chuyển đổi sang Decimal để tính toán
+    try:
+        numerator_d = Decimal(numerator)
+        denominator_d = Decimal(denominator)
+        
+        if denominator_d == Decimal(0):
+            return None # Hoặc bạn có thể trả về 'Infinity'
+        
+        # Trả về một số float để dễ dàng serialize sang JSON
+        return float(numerator_d / denominator_d)
+        
+    except (TypeError, ValueError, InvalidOperation):
+        return None
+
+
+
+from django.http import JsonResponse
+from django.db.models import Max, Count, F, Q
+from .models import CongTy, TongHopTaiChinh, BangCanDoiKeToan, BangKetQuaKinhDoanh
+from decimal import Decimal, InvalidOperation # Import thêm
+# 1. IMPORT HÀM MỚI CỦA BẠN
+from .gemini_utils import update_financial_ratios_sheet
+
+def calculate_financial_ratios_view(request):
+    
+    # 1. Xác định 5 năm gần nhất có dữ liệu
+    # Lấy năm mới nhất có trong CSDL
+    latest_report = (
+        TongHopTaiChinh.objects
+        .exclude(congTy__maChungKhoan__in=["SCS",'a'])
+        .aggregate(max_nam=Max('nam'))
+    )
+
+    latest_year = latest_report.get('max_nam')
+
+    if not latest_year:
+        return JsonResponse({"error": "Không có dữ liệu báo cáo tài chính"}, status=404)
+
+    # Chúng ta cần 5 năm để *tính toán* (N), và 1 năm trước đó (N-1)
+    # Ví dụ: tính cho 2024, 2023, 2022, 2021, 2020.
+    # Chúng ta sẽ cần dữ liệu từ 2019 (để tính cho 2020).
+    start_calc_year = latest_year - 4
+    start_data_year = latest_year - 5 # Năm N-1 của năm đầu tiên
+    
+    # Danh sách các năm cần lấy dữ liệu (6 năm)
+    years_to_query = list(range(start_data_year, latest_year + 1))
+    
+    # Danh sách các năm sẽ có trong kết quả (5 năm)
+    years_to_calculate = list(range(start_calc_year, latest_year + 1))
+
+    all_companies = CongTy.objects.all()
+    
+    # Đây là JSON_OUTPUT cuối cùng
+    results = {}
+
+    # 2. Lặp qua từng công ty
+    for company in all_companies:
+        if company.maChungKhoan in ['a']:
+            continue
+        company_code = company.maChungKhoan
+        results[company_code] = {
+            "tenCongTy": company.tenCongTy,
+            "annual_reports": {}
+        }
+        
+        # 3. Lấy tất cả dữ liệu BCTC của công ty này trong 6 năm qua
+        # Dùng select_related để tối ưu, vì chúng ta sẽ dùng cả 3 bảng
+        reports = TongHopTaiChinh.objects.filter(
+            congTy=company,
+            nam__in=years_to_query,
+            quy__in=[0, 5]  # Giả sử 0 hoặc 5 là báo cáo năm (theo ghi chú model của bạn)
+        ).select_related(
+            'bangcandoiketoan',
+            'bangketquakinhdoanh',
+
+        ).order_by('nam')
+
+        # 4. Tổ chức lại dữ liệu vào một dict để dễ truy cập (N và N-1)
+        processed_data = {}
+        for report in reports:
+            try:
+                bcdt = report.bangcandoiketoan  
+                kqkd = report.bangketquakinhdoanh
+                
+                # Lưu trữ các số liệu quan trọng
+                processed_data[report.nam] = {
+                    "LoiNhuanSauThue": kqkd.loiNhuanSauThueThuNhapDoanhNghiep,
+                    "TongTaiSan": bcdt.tongCongTaiSan,
+                    "VonChuSoHuu": bcdt.vonChuSoHuu, # D. VỐN CHỦ SỞ HỮU
+                    "TaiSanNganHan": bcdt.taiSanNganHan,
+                    "NoNganHan": bcdt.noNganHan,
+                    "NoPhaiTra": bcdt.noPhaiTra, # C. NỢ PHẢI TRẢ
+                }
+            except (BangCanDoiKeToan.DoesNotExist, BangKetQuaKinhDoanh.DoesNotExist, AttributeError):
+                # Bỏ qua nếu năm đó bị thiếu BCDKT hoặc KQKD
+                continue
+
+        # 5. Tính toán các chỉ số cho 5 năm gần nhất
+        for year in years_to_calculate:
+            data_N = processed_data.get(year)
+            data_N_minus_1 = processed_data.get(year - 1)
+            
+            # Phải có dữ liệu của cả N và N-1 mới tính được
+            if not data_N or not data_N_minus_1:
+                results[company_code]["annual_reports"][year] = "Không đủ dữ liệu"
+                continue
+
+            # === Bắt đầu tính toán ===
+            
+            # --- Dữ liệu năm N ---
+            LNST_N = data_N["LoiNhuanSauThue"]
+            TTS_N = data_N["TongTaiSan"]
+            VCSH_N = data_N["VonChuSoHuu"]
+            TSNH_N = data_N["TaiSanNganHan"]
+            NNH_N = data_N["NoNganHan"]
+            NPT_N = data_N["NoPhaiTra"]
+            
+            # --- Dữ liệu năm N-1 (dùng cho tăng trưởng và tính bình quân) ---
+            LNST_N_1 = data_N_minus_1["LoiNhuanSauThue"]
+            TTS_N_1 = data_N_minus_1["TongTaiSan"]
+            VCSH_N_1 = data_N_minus_1["VonChuSoHuu"]
+
+            # --- Tính giá trị bình quân ---
+            avg_TTS = safe_divide(TTS_N + TTS_N_1, 2)
+            avg_VCSH = safe_divide(VCSH_N + VCSH_N_1, 2)
+
+            # --- Tính các chỉ số ---
+            # 1. ROA = Lợi nhuận sau thuế / Tổng tài sản bình quân
+            roa = safe_divide(LNST_N, avg_TTS)
+            
+            # 2. ROE = Lợi nhuận sau thuế / Vốn chủ sở hữu bình quân
+            roe = safe_divide(LNST_N, avg_VCSH)
+            
+            # 3. Tỷ suất thanh toán hiện hành (Current Ratio) = Tài sản ngắn hạn / Nợ ngắn hạn
+            current_ratio = safe_divide(TSNH_N, NNH_N)
+            
+            # 4. Cơ cấu nợ (Debt-to-Assets) = Tổng Nợ phải trả / Tổng Tài sản
+            # (Đây là một cách hiểu "dept" và "cơ cấu nợ")
+            debt_to_assets = safe_divide(NPT_N, TTS_N)
+            
+            # 5. Tăng trưởng tài sản = (TTS_N - TTS_N_1) / TTS_N_1
+            asset_growth = safe_divide(TTS_N - TTS_N_1, TTS_N_1)
+
+            # 6. Tăng trưởng lợi nhuận = (LNST_N - LNST_N_1) / LNST_N_1
+            profit_growth = safe_divide(LNST_N - LNST_N_1, LNST_N_1)
+
+            # Lưu kết quả của năm này
+            results[company_code]["annual_reports"][year] = {
+                "ROA": roa,
+                "ROE": roe,
+                "TySuatThanhToanHienHanh": current_ratio,
+                "HeSoNoTrenTongTaiSan": debt_to_assets,
+                "TangTruongTaiSan": asset_growth,
+                "TangTruongLoiNhuan": profit_growth,
+            }
+            # print(results, flush=True)
+    # 6. Cập nhật Google Sheet
+    update_financial_ratios_sheet(results)
+    print("Đã cập nhật Google Sheet từ view.", flush=True)
+    # Trả về kết quả cuối cùng
+    return JsonResponse(results, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
+
+
+# View API JSON cũ (được rút gọn)
+def calculate_financial_ratios_view(request):
+    data = get_financial_ratios_data()
+    if data is None:
+        return JsonResponse({"error": "Không có dữ liệu báo cáo tài chính"}, status=404)
+    update_financial_ratios_sheet(data) # Uncomment nếu cần update Google Sheet
+    return JsonResponse(data, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
+

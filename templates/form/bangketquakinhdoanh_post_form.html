@@ -1,0 +1,138 @@
+{% extends 'main.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <h2>Nhập liệu Bảng Kết Quả Kinh Doanh</h2>
+    <p>Form nhập liệu thủ công. Đảm bảo `id` của mỗi thẻ input khớp với tên trường trong model.</p>
+
+    <form id="kqkdForm">
+        <div class="mb-3">
+            <label for="baoCaoSelect" class="form-label"><strong>1. Chọn Báo Cáo Tài Chính (Bắt buộc)</strong></label>
+            <select id="baoCaoSelect" class="form-select" required>
+                <option value="" selected disabled>Đang tải danh sách báo cáo...</option>
+            </select>
+        </div>
+        
+        <hr>
+        
+        <h3 class="mt-4 text-primary">PHẦN KẾT QUẢ KINH DOANH</h3>
+
+        <div class="row">
+            <div class="col-md-4 mb-3"><label for="doanhThuBanHangVaCungCapDichVu" class="form-label">Doanh thu bán hàng & CCDV</label><input type="number" class="form-control" id="doanhThuBanHangVaCungCapDichVu"></div>
+            <div class="col-md-4 mb-3"><label for="cacKhoanGiamTruDoanhThu" class="form-label">Các khoản giảm trừ doanh thu</label><input type="number" class="form-control" id="cacKhoanGiamTruDoanhThu"></div>
+            <div class="col-md-4 mb-3"><label for="doanhThuThuan" class="form-label">Doanh thu thuần</label><input type="number" class="form-control" id="doanhThuThuan"></div>
+            <div class="col-md-4 mb-3"><label for="giaVonHangBan" class="form-label">Giá vốn hàng bán</label><input type="number" class="form-control" id="giaVonHangBan"></div>
+            <div class="col-md-4 mb-3"><label for="loiNhuanGop" class="form-label">Lợi nhuận gộp</label><input type="number" class="form-control" id="loiNhuanGop"></div>
+            <div class="col-md-4 mb-3"><label for="doanhThuHoatDongTaiChinh" class="form-label">Doanh thu hoạt động tài chính</label><input type="number" class="form-control" id="doanhThuHoatDongTaiChinh"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiTaiChinh" class="form-label">Chi phí tài chính</label><input type="number" class="form-control" id="chiPhiTaiChinh"></div>
+            <div class="col-md-4 mb-3"><label for="trongDoChiPhiLaiVay" class="form-label">Trong đó: Chi phí lãi vay</label><input type="number" class="form-control" id="trongDoChiPhiLaiVay"></div>
+            <div class="col-md-4 mb-3"><label for="phanLaiLoTrongCongTyLienDoanhLienKet" class="form-label">Phần lãi/lỗ trong cty liên kết</label><input type="number" class="form-control" id="phanLaiLoTrongCongTyLienDoanhLienKet"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiBanHang" class="form-label">Chi phí bán hàng</label><input type="number" class="form-control" id="chiPhiBanHang"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiQuanLyDoanhNghiep" class="form-label">Chi phí quản lý doanh nghiệp</label><input type="number" class="form-control" id="chiPhiQuanLyDoanhNghiep"></div>
+            <div class="col-md-4 mb-3"><label for="loiNhuanThuanTuHoatDongKinhDoanh" class="form-label">Lợi nhuận thuần từ HĐKD</label><input type="number" class="form-control" id="loiNhuanThuanTuHoatDongKinhDoanh"></div>
+            <div class="col-md-4 mb-3"><label for="thuNhapKhac" class="form-label">Thu nhập khác</label><input type="number" class="form-control" id="thuNhapKhac"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiKhac" class="form-label">Chi phí khác</label><input type="number" class="form-control" id="chiPhiKhac"></div>
+            <div class="col-md-4 mb-3"><label for="loiNhuanKhac" class="form-label">Lợi nhuận khác</label><input type="number" class="form-control" id="loiNhuanKhac"></div>
+            <div class="col-md-4 mb-3"><label for="tongLoiNhuanKeToanTruocThue" class="form-label">Tổng LN kế toán trước thuế</label><input type="number" class="form-control" id="tongLoiNhuanKeToanTruocThue"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiThueTNDNHienHanh" class="form-label">Chi phí thuế TNDN hiện hành</label><input type="number" class="form-control" id="chiPhiThueTNDNHienHanh"></div>
+            <div class="col-md-4 mb-3"><label for="chiPhiThueTNDNHoanLai" class="form-label">Chi phí thuế TNDN hoãn lại</label><input type="number" class="form-control" id="chiPhiThueTNDNHoanLai"></div>
+            <div class="col-md-4 mb-3"><label for="loiNhuanSauThueThuNhapDoanhNghiep" class="form-label fw-bold">Lợi nhuận sau thuế TNDN</label><input type="number" class="form-control" id="loiNhuanSauThueThuNhapDoanhNghiep"></div>
+        </div>
+
+        <hr class="my-4">
+        
+        <button type="submit" class="btn btn-primary btn-lg">Lưu Dữ Liệu</button>
+    </form>
+    
+    <div id="result" class="mt-3"></div>
+</div>
+
+<script>
+
+
+    async function companyName(company_id) {
+    const res = await fetch('/api/get_congty_data');
+    const result = await res.json();
+    const company = result.find(c => String(c.maChungKhoan) === String(company_id));
+    if (company) {
+        console.log(`✅ Tìm thấy: ${company.tenCongTy}`);
+        return company.tenCongTy;
+    } else {
+        console.log(`❌ Không tìm thấy mã: ${company_id}`);
+        return 'Unknown Company';
+    }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        const baoCaoSelect = document.getElementById('baoCaoSelect');
+        const kqkdForm = document.getElementById('kqkdForm');
+        const resultDiv = document.getElementById('result');
+
+        // 1. Tải danh sách Báo cáo cho dropdown
+        async function loadBaoCaoOptions() {
+            try {
+                // Tái sử dụng API cũ
+                const response = await fetch('/api/get_tonghoptaichinh_data/'); 
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                baoCaoSelect.innerHTML = '<option value="" selected disabled>-- Chọn một báo cáo --</option>';
+                
+                 for (const report of data) {
+                    const option = document.createElement('option');
+                    option.value = report.id;
+                    option.textContent = `${await companyName(report.congTy_id)} - ${report.nam}`; // ✅ Hợp lệ
+                    baoCaoSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Lỗi khi tải danh sách báo cáo:', error);
+                baoCaoSelect.innerHTML = '<option value="" selected disabled>Lỗi khi tải danh sách</option>';
+            }
+        }
+        
+        loadBaoCaoOptions();
+
+        // 2. Xử lý sự kiện submit form
+        kqkdForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            resultDiv.innerHTML = '<div class="alert alert-info">Đang gửi dữ liệu...</div>';
+
+            const inputs = kqkdForm.querySelectorAll('input[type="number"]');
+            const formData = {};
+
+            if (!baoCaoSelect.value) {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Vui lòng chọn một báo cáo tài chính!</div>`;
+                return;
+            }
+            formData['baoCao'] = parseInt(baoCaoSelect.value, 10);
+            
+            for (let input of inputs) {
+                if (input.id && input.value !== '') {
+                    formData[input.id] = parseInt(input.value, 10);
+                }
+            }
+
+            try {
+                // Gửi dữ liệu đến API endpoint mới
+                const response = await fetch('/api/post_bangketquakinhdoanh_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                const alertClass = response.ok ? 'alert-success' : 'alert-danger';
+                resultDiv.innerHTML = `<div class="alert ${alertClass}">${data.message}</div>`;
+
+            } catch (error) {
+                console.error('Lỗi khi gửi form:', error);
+                resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
+            }
+        });
+    });
+</script>
+{% endblock %}

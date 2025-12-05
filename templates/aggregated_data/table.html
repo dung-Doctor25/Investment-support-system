@@ -1,0 +1,205 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<div class="container-fluid mt-4">
+    
+    <div class="row mb-3 align-items-center">
+        <div class="col-md-6">
+            <h3 class="text-primary fw-bold"><i class="bi bi-table"></i> Bảng Dữ Liệu Tài Chính</h3>
+        </div>
+        <div class="col-md-6 d-flex justify-content-md-end gap-2">
+            <div class="input-group w-auto">
+                <span class="input-group-text bg-light fw-bold">Lọc theo:</span>
+                <select id="company-filter" class="form-select" style="min-width: 200px;">
+                    <option value="all">-- Tất cả công ty --</option>
+                    </select>
+            </div>
+            <button class="btn btn-outline-secondary" onclick="location.reload()">
+                Làm mới
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div id="loading-spinner" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Đang tải dữ liệu...</p>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover table-striped align-middle mb-0" id="financial-table" style="display: none; font-size: 0.9rem;">
+                    <thead class="table-dark text-center align-middle sticky-top">
+                        <tr>
+                            <th rowspan="2" style="min-width: 60px;">Mã</th>
+                            <th rowspan="2" style="min-width: 60px;">Năm</th>
+                            <th colspan="5" class="bg-secondary">Định giá & Thị trường</th>
+                            <th colspan="4" class="bg-success bg-opacity-75">Hiệu quả & Tăng trưởng</th>
+                            <th colspan="3" class="bg-danger bg-opacity-75">Sức khỏe Tài chính</th>
+                        </tr>
+                        <tr>
+                            <th>Giá Đóng Cửa</th>
+                            <th>EPS</th>
+                            <th>P/E</th>
+                            <th>P/B</th>
+                            <th>Beta</th>
+                            
+                            <th>ROA</th>
+                            <th>ROE</th>
+                            <th>TT Tài Sản</th>
+                            <th>TT Lợi Nhuận</th>
+                            
+                            <th>Nợ/Tổng TS</th>
+                            <th>Tỷ lệ Nợ Dài Hạn</th>
+                            <th>Thanh toán HH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer text-muted fst-italic text-end small">
+            * Đơn vị: Giá & EPS (VND); Tăng trưởng & Tỷ lệ (%)
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-num { text-align: right; font-family: 'Consolas', 'Monaco', monospace; }
+    .fw-bold-num { font-weight: 700; color: #198754; } /* Màu xanh cho số tốt */
+    .text-neg { color: #dc3545; font-weight: 600; } /* Màu đỏ cho số âm */
+    
+    /* Sticky Header fix */
+    thead.sticky-top th { position: sticky; top: 0; z-index: 10; }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const API_URL = '/api/financial-ratios/';
+        
+        // DOM Elements
+        const tableBody = document.getElementById('table-body');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const dataTable = document.getElementById('financial-table');
+        const companyFilter = document.getElementById('company-filter');
+
+        let globalData = {}; // Biến lưu toàn bộ dữ liệu để lọc
+
+        // --- 1. CONFIG FORMATTERS ---
+        const formatters = {
+            currency: new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }),
+            decimal: new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            percent: (value) => (value * 100).toFixed(2) + '%'
+        };
+
+        // --- 2. FETCH DATA ---
+        fetch(API_URL)
+            .then(response => response.json())
+            .then(data => {
+                globalData = data; // Lưu dữ liệu gốc
+                initFilter(data);  // Tạo options cho dropdown
+                renderTable(data, 'all'); // Vẽ bảng lần đầu
+                
+                loadingSpinner.style.display = 'none';
+                dataTable.style.display = 'table';
+            })
+            .catch(error => {
+                console.error('Lỗi:', error);
+                loadingSpinner.innerHTML = `<p class="text-danger">Lỗi tải dữ liệu.</p>`;
+            });
+
+        // --- 3. INIT FILTER ---
+        function initFilter(data) {
+            const stockCodes = Object.keys(data).sort();
+            stockCodes.forEach(code => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.text = `${code} - ${data[code].tenCongTy}`;
+                companyFilter.appendChild(option);
+            });
+
+            // Sự kiện khi chọn dropdown
+            companyFilter.addEventListener('change', function() {
+                renderTable(globalData, this.value);
+            });
+        }
+
+        // --- 4. RENDER TABLE ---
+        function renderTable(data, filterCode) {
+            let html = '';
+            
+            // Xác định danh sách công ty cần hiển thị
+            let codesToShow = [];
+            if (filterCode === 'all') {
+                codesToShow = Object.keys(data);
+            } else if (data[filterCode]) {
+                codesToShow = [filterCode];
+            }
+
+            codesToShow.forEach(stockCode => {
+                const company = data[stockCode];
+                const reports = company.annual_reports;
+                const years = Object.keys(reports).sort((a, b) => b - a);
+
+                years.forEach(year => {
+                    const m = reports[year]; // m = metrics
+                    
+                    if (typeof m !== 'object') return; // Bỏ qua nếu lỗi
+
+                    html += `
+                        <tr>
+                            <td class="text-center fw-bold text-primary">${stockCode}</td>
+                            <td class="text-center fw-bold">${year}</td>
+                            
+                            <td class="text-num">${fmt(m.GiaDongCuaCuoiNam, 'curr')}</td>
+                            <td class="text-num">${fmt(m.EPS, 'curr')}</td>
+                            <td class="text-num">${fmt(m.PE, 'dec')}</td>
+                            <td class="text-num">${fmt(m.PB, 'dec')}</td>
+                            <td class="text-num">${fmt(m.Beta, 'dec')}</td>
+                            
+                            <td class="text-num ${color(m.ROA, 0.05)}">${fmt(m.ROA, 'pct')}</td>
+                            <td class="text-num ${color(m.ROE, 0.15)}">${fmt(m.ROE, 'pct')}</td>
+                            <td class="text-num ${growthColor(m.TangTruongTaiSan)}">${fmt(m.TangTruongTaiSan, 'pct')}</td>
+                            <td class="text-num ${growthColor(m.TangTruongLoiNhuan)}">${fmt(m.TangTruongLoiNhuan, 'pct')}</td>
+                            
+                            <td class="text-num">${fmt(m.HeSoNoTrenTongTaiSan, 'pct')}</td>
+                            <td class="text-num text-danger fw-bold">${fmt(m.TyLeNoDaiHan, 'pct')}</td>
+                            <td class="text-num">${fmt(m.TySuatThanhToanHienHanh, 'dec')}</td>
+                        </tr>
+                    `;
+                });
+            });
+
+            if (html === '') {
+                html = '<tr><td colspan="14" class="text-center">Không có dữ liệu</td></tr>';
+            }
+            tableBody.innerHTML = html;
+        }
+
+        // --- HELPERS ---
+        function fmt(value, type) {
+            if (value === null || value === undefined) return '-';
+            if (type === 'curr') return formatters.currency.format(value);
+            if (type === 'dec') return formatters.decimal.format(value);
+            if (type === 'pct') return formatters.percent(value);
+            return value;
+        }
+
+        // Tô màu xanh nếu chỉ số cao (ROA, ROE)
+        function color(val, threshold) {
+            if (val === null) return '';
+            return val >= threshold ? 'fw-bold-num' : '';
+        }
+
+        // Tô màu tăng trưởng: Dương = Xanh, Âm = Đỏ
+        function growthColor(val) {
+            if (val === null) return '';
+            return val < 0 ? 'text-neg' : (val > 0.1 ? 'fw-bold-num' : '');
+        }
+    });
+</script>
+{% endblock %}
