@@ -10,7 +10,12 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,9 +28,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-hzu23zo=rl3qvg!af9%%#a#o)$v(jlnb1fxj*%@+mami4yc0t0'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False if os.environ.get('K_SERVICE') else True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = ['https://*.run.app']
 
 
 # Application definition
@@ -44,6 +50,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,17 +84,30 @@ ASGI_APPLICATION = 'Thesis.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mydb',
-        'USER': 'myuser',
-        'PASSWORD': 'mypassword',
-        'HOST': 'db',  # service name trong docker-compose.yml
-        'PORT': '5432',
+# Kiểm tra xem có đang chạy trên Cloud Run không (Google tự inject biến K_SERVICE)
+if os.environ.get('K_SERVICE'):
+    # Cấu hình cho Cloud Run kết nối Cloud SQL
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'mydb', # VD: mydb
+            'USER': 'myuser',          # VD: postgres
+            'PASSWORD': 'Dungvip123@',
+            'HOST': '/cloudsql/aerial-yeti-480303-f5:us-central1:thesis-db', # Lấy từ giao diện Cloud SQL
+        }
     }
-}
+else:
+    # Cấu hình cũ chạy Local / Docker Compose
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'mydb',
+            'USER': 'myuser',
+            'PASSWORD': 'mypassword',
+            'HOST': 'db', 
+            'PORT': '5432',
+        }
+    }
 
 
 
@@ -125,11 +145,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 

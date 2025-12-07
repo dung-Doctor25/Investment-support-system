@@ -50,4 +50,6 @@ urlpatterns += [
 # Download financial ratios sheet
 urlpatterns += [
     path('download-financial-ratios/', views.export_financial_ratios_excel, name='export_financial_ratios_excel'),
+    path('update-sheet/', views.update_google_sheet, name='update_google_sheet'),
+
 ]

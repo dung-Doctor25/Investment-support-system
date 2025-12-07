@@ -9,7 +9,7 @@ class CongTy(models.Model):
     maChungKhoan = models.CharField(max_length=10, unique=True, db_index=True, verbose_name="Mã chứng khoán")
 
     def __str__(self):
-        return f"{self.maChungKhoan} - {self.tenCongTy}"
+        return f"{self.maChungKhoan} - {self.tenCongTy} "
 
     class Meta:
         verbose_name = "Công Ty"
@@ -46,7 +46,7 @@ class TongHopTaiChinh(models.Model):
     quy = models.IntegerField(null=True, blank=True, verbose_name="Quý") # Ví dụ: 1, 2, 3, 4. Quý 0 hoặc 5 cho báo cáo năm.
 
     def __str__(self):
-        return f"BCTC {self.congTy.maChungKhoan} - Năm {self.nam}, Quý {self.quy}"
+        return f"BCTC - {self.congTy.maChungKhoan} - Năm {self.nam}, Quý {self.quy}"
 
     class Meta:
         verbose_name = "Báo Cáo Tài Chính"

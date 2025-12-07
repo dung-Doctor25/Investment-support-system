@@ -3,66 +3,75 @@
 
 {% block content %}
 
-<div class="container-fluid mt-4 mb-5">
+<div class="container-fluid mt-4 mb-5 px-0 w-100 d-flex flex-column align-items-center">
     
-    <div class="row mb-3">
-        <div class="col-12">
-            <h3 class="text-primary fw-bold">
-                Dashboard Phân Tích 
+    <div class="row mb-3 mx-0 w-100">
+        <div class="col-12 px-0">
+            <h3 class="text-primary fw-bold ms-3">
+                Dashboard Phân Tích (Cap 2)
             </h3>
         </div>
     </div>
 
-    <div class="card shadow-lg border-0">
-        <div class="card-body p-0"> <div class="table-responsive" style="overflow-x: auto;">
+    <div class="card shadow-lg border-0 w-100 rounded-0 bg-light">
+        <div class="card-body p-0 w-100 d-flex justify-content-center"> 
+            
+            <div id='viz_wrapper' style='position: relative; width: 100%; overflow: hidden; display: flex; justify-content: center;'>
                 
-                <div class='tableauPlaceholder' id='viz_cap2_dashboard' style='position: relative'>
+                <div class='tableauPlaceholder' id='viz_cap2_dashboard_2' style='position: relative'>
                     <noscript>
                         <a href='#'>
-                            <img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard&#47;Dashboard1&#47;1_rss.png' style='border: none' />
+                            <img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard2&#47;Dashboard1&#47;1_rss.png' style='border: none' />
                         </a>
                     </noscript>
                     <object class='tableauViz' style='display:none;'>
                         <param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> 
                         <param name='embed_code_version' value='3' /> 
                         <param name='site_root' value='' />
-                        
-                        <param name='name' value='Cap2Dashboard&#47;Dashboard1' />
-                        
+                        <param name='name' value='Cap2Dashboard2&#47;Dashboard1' />
                         <param name='tabs' value='yes' />
-                        
                         <param name='toolbar' value='yes' />
-                        <param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard&#47;Dashboard1&#47;1.png' /> 
+                        <param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;Ca&#47;Cap2Dashboard2&#47;Dashboard1&#47;1.png' /> 
                         <param name='animate_transition' value='yes' />
                         <param name='display_static_image' value='yes' />
                         <param name='display_spinner' value='yes' />
                         <param name='display_overlay' value='yes' />
                         <param name='display_count' value='yes' />
                         <param name='language' value='en-US' />
+                        <param name='fit' value='yes' /> 
                     </object>
                 </div>
                 
                 <script type='text/javascript'>
-                    var divElement = document.getElementById('viz_cap2_dashboard');
+                    var divElement = document.getElementById('viz_cap2_dashboard_2');
                     var vizElement = divElement.getElementsByTagName('object')[0];
                     
-                    // Logic tự động chỉnh kích thước (Responsive)
-                    if ( divElement.offsetWidth > 800 ) {
-                        vizElement.style.width='100%';
-                        vizElement.style.height='850px'; // Chiều cao mặc định cho màn hình lớn
-                    } else if ( divElement.offsetWidth > 500 ) {
-                        vizElement.style.width='100%';
-                        vizElement.style.height='850px';
+                    // --- LOGIC MỚI: TỰ ĐỘNG TÍNH TOÁN ---
+                    
+                    // 1. Lấy chiều rộng thực tế của màn hình người xem
+                    var screenWidth = divElement.parentElement.offsetWidth;
+                    
+                    // 2. Thiết lập chiều rộng Viz là 100% để nó chiếm hết khung chứa (dù nội dung bên trong có thể nhỏ hơn)
+                    vizElement.style.width = '100%';
+                    vizElement.style.maxWidth = '100%'; 
+                    
+                    // 3. Tính chiều cao thông minh (Tỷ lệ 16:9 hoặc tùy chỉnh)
+                    // Thay vì fix cứng pixel, ta tính theo tỷ lệ chiều rộng để dashboard không bị "lùn" đi khi màn hình to ra
+                    if (screenWidth > 800) {
+                        // Tỷ lệ chuẩn cho Desktop (khoảng 0.6 đến 0.75 chiều rộng)
+                        vizElement.style.height = (screenWidth * 0.80) + 'px';
+                    } else if (screenWidth > 500) {
+                        vizElement.style.height = (screenWidth * 0.85) + 'px';
                     } else {
-                        vizElement.style.width='100%';
-                        vizElement.style.height='1200px'; // Cao hơn trên mobile để hiển thị dọc
+                        // Mobile: cần cao hơn để cuộn dọc
+                        vizElement.style.height = '1400px'; 
                     }
                     
                     var scriptElement = document.createElement('script');
                     scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';
                     vizElement.parentNode.insertBefore(scriptElement, vizElement);
                 </script>
-                </div>
+            </div>
         </div>
     </div>
 </div>

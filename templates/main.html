@@ -12,6 +12,24 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         <link rel="stylesheet" href="{% static 'css.css' %}">
         <script src="{% static 'js/function.js' %}"></script>
+        <style>
+         /* 1. Đảm bảo thanh menu chính luôn nằm trên cùng */
+        .navbar {
+            position: relative; /* Bắt buộc phải có position để z-index hoạt động */
+            z-index: 9999 !important; /* Đặt số thật cao để đè lên mọi thứ */
+        }
+
+        /* 2. Đảm bảo menu con (dropdown) cũng nằm trên cùng */
+        .dropdown-menu {
+            z-index: 10000 !important; /* Cao hơn cả navbar một chút */
+        }
+
+        /* 3. (Tuỳ chọn) Nếu bạn dùng Tableau iframe, đôi khi cần fix thêm cái này */
+        iframe {
+            position: relative;
+            z-index: 1; /* Đẩy iframe xuống thấp hơn menu */
+        }
+    </style>
     </head>
     <body>
         <nav class="navbar navbar-expand-lg bg-body-tertiary">
@@ -38,8 +56,6 @@
                     <li><a class="dropdown-item" href="{% url 'tonghoptaichinh_form' %}">Tổng hợp tài chính</a></li>
                     <li><a class="dropdown-item" href="{% url 'bangcandoiketoan_form' %}">Bảng CĐKT</a></li>
                     <li><a class="dropdown-item" href="{% url 'bangketquakinhdoanh_form' %}">Bảng KQKD</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#">Something else here</a></li>
                 </ul>
                 </li>
                 <li class="nav-item">
@@ -58,6 +74,12 @@
                 </li>
                 <li class="nav-item">
                 <a class="nav-link" href="{% url 'export_financial_ratios_excel' %}">Download data</a>
+                </li>
+                <li class="nav-item">
+                <a class="nav-link" href="https://docs.google.com/spreadsheets/d/1aY8IoFpUQ51LJd0_xVGsQp1d8dZonn3eNTVceebFJu8/edit?gid=0#gid=0">Google sheet</a>
+                </li>
+                <li class="nav-item">
+                <a class="nav-link" href="{% url 'update_google_sheet' %}">Update Google Sheet</a>
                 </li>
             </ul>
             <form class="d-flex" role="search">

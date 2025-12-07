@@ -289,8 +289,10 @@
         }
 
         // 1. WebSocket
-        const socket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
-
+        var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
+        const socket = new WebSocket(
+            ws_scheme + '://' + window.location.host + '/ws/chat/'
+        );
         // --- 4. HÀM THÊM TIN NHẮN (ĐÃ CẬP NHẬT) ---
         // Thêm tham số isWide để chỉ định tin nhắn nào cần mở rộng (như Báo cáo)
         function addMessage(text, sender, isLoading = false, isHtml = false, isWide = false) {

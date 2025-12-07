@@ -5,8 +5,11 @@ import gspread
 import numpy as np
 import json
 
-from django.db.models import Max, Count
+from django.db.models import Max, Count, Prefetch
 from .models import CongTy, TongHopTaiChinh, BangCanDoiKeToan, BangKetQuaKinhDoanh, ThiTruongChungKhoang
+
+from django.conf import settings
+from google.oauth2.service_account import Credentials
 
 def safe_divide(a, b):
     if b is None or b == 0: return 0
@@ -14,9 +17,12 @@ def safe_divide(a, b):
 
 def get_financial_ratios_data():
     """
-    Tính toán và trả về dictionary dữ liệu chỉ số tài chính đầy đủ.
+    Tính toán chỉ số tài chính cho một nhóm công ty cụ thể (đã được tối ưu Query).
     """
-    # 1. Xác định năm dữ liệu
+    target_companies_queryset=CongTy.objects.all().order_by('maChungKhoan')
+
+
+    # 1. Xác định năm dữ liệu (Lấy global max year)
     latest_report = (
         TongHopTaiChinh.objects
         .exclude(congTy__maChungKhoan__in=["SCS",'a'])
@@ -25,32 +31,52 @@ def get_financial_ratios_data():
     latest_year = latest_report.get('max_nam')
 
     if not latest_year:
-        return None
-
+        return {}
+    
     start_calc_year = latest_year - 4
     start_data_year = latest_year - 5 
     
     years_to_query = list(range(start_data_year, latest_year + 1))
     years_to_calculate = list(range(start_calc_year, latest_year + 1))
 
-    # 2. Đếm số năm thu thập
-    company_years_count = (
-        BangCanDoiKeToan.objects
-        .values('baoCao__congTy__maChungKhoan')
-        .annotate(total_years=Count('baoCao__nam', distinct=True))
+    # 2. TỐI ƯU HÓA QUERY (Eager Loading)
+    # Bước này cực quan trọng: Gom tất cả dữ liệu cần thiết của 20 cty vào 1 lần query duy nhất
+    # Thay vì query lắt nhắt trong vòng lặp.
+    
+    optimized_companies = target_companies_queryset.prefetch_related(
+        # Lấy trước dữ liệu Báo cáo tài chính + join sẵn bảng con
+        Prefetch(
+            'tonghoptaichinh_set', # Lưu ý: Cần check lại related_name trong models.py nếu bạn đặt khác
+            queryset=TongHopTaiChinh.objects.filter(
+                nam__in=years_to_query,
+                quy__in=[0, 5]
+            ).select_related('bangcandoiketoan', 'bangketquakinhdoanh').order_by('nam'),
+            to_attr='fetched_reports' # Lưu kết quả vào biến tạm này
+        ),
+        # Lấy trước dữ liệu Thị trường chứng khoán
+        Prefetch(
+            'thitruongchungkhoang_set', # Lưu ý: Check lại related_name
+            queryset=ThiTruongChungKhoang.objects.filter(
+                ngay__year__in=years_to_calculate
+            ).order_by('-ngay'),
+            to_attr='fetched_market_data'
+        )
     )
-    years_count_map = {item['baoCao__congTy__maChungKhoan']: item['total_years'] for item in company_years_count}
 
-    all_companies = CongTy.objects.all()
     results = {}
 
-    # 3. Lặp qua từng công ty
-    for company in all_companies:
+    # 3. Lặp qua từng công ty (Lúc này chỉ chạy trên RAM, không gọi DB nữa)
+    for company in optimized_companies:
         if company.maChungKhoan in ['a']:
             continue
         
         company_code = company.maChungKhoan
-        total_collected_years = years_count_map.get(company_code, 0)
+        
+        # Lấy dữ liệu từ biến tạm (đã prefetch)
+        reports_list = getattr(company, 'fetched_reports', [])
+        market_data_list = getattr(company, 'fetched_market_data', [])
+        
+        total_collected_years = len(set(r.nam for r in reports_list))
 
         results[company_code] = {
             "tenCongTy": company.tenCongTy,
@@ -58,18 +84,14 @@ def get_financial_ratios_data():
             "annual_reports": {}
         }
         
-        # Lấy dữ liệu BCTC
-        reports = TongHopTaiChinh.objects.filter(
-            congTy=company,
-            nam__in=years_to_query,
-            quy__in=[0, 5]
-        ).select_related('bangcandoiketoan', 'bangketquakinhdoanh').order_by('nam')
-
+        # Chuyển list reports thành Dictionary để tra cứu nhanh theo năm: Data[2023]
         processed_data = {}
-        for report in reports:
+        for report in reports_list:
             try:
+                # Vì đã select_related ở trên nên truy cập vào đây không tốn query
                 bcdt = report.bangcandoiketoan  
                 kqkd = report.bangketquakinhdoanh
+                
                 processed_data[report.nam] = {
                     "LoiNhuanSauThue": kqkd.loiNhuanSauThueThuNhapDoanhNghiep,
                     "TongTaiSan": bcdt.tongCongTaiSan,
@@ -80,16 +102,15 @@ def get_financial_ratios_data():
                     "VonGop": bcdt.vonGopCuaChuSoHuu,
                     "NoDaiHan": bcdt.noDaiHan
                 }
-            except (BangCanDoiKeToan.DoesNotExist, BangKetQuaKinhDoanh.DoesNotExist, AttributeError):
+            except (AttributeError, Exception):
                 continue
 
-        # Tính toán chỉ số cho từng năm
+        # Tính toán chỉ số
         for year in years_to_calculate:
             data_N = processed_data.get(year)
             data_N_minus_1 = processed_data.get(year - 1)
             
             if not data_N or not data_N_minus_1:
-                # results[company_code]["annual_reports"][year] = "Không đủ dữ liệu" # Tùy chọn giữ lại dòng này
                 continue
 
             # --- Dữ liệu Tài chính ---
@@ -107,15 +128,18 @@ def get_financial_ratios_data():
             TTS_N_1 = data_N_minus_1["TongTaiSan"]
             VCSH_N_1 = data_N_minus_1["VonChuSoHuu"]
 
-            # --- LẤY DỮ LIỆU THỊ TRƯỜNG ---
-            market_data = ThiTruongChungKhoang.objects.filter(
-                congTy=company, 
-                ngay__year=year
-            ).order_by('-ngay').first()
+            # --- LẤY DỮ LIỆU THỊ TRƯỜNG (Lọc từ list RAM) ---
+            # Tìm bản ghi thị trường đầu tiên khớp với năm hiện tại
+            market_data = next((item for item in market_data_list if item.ngay.year == year), None)
             
-            market_price = float(market_data.giaDongCua) * 1000 if market_data and market_data.giaDongCua else (float(market_data.giaDieuChinh) * 1000 if market_data and market_data.giaDieuChinh else 0)
+            market_price = 0
+            if market_data:
+                if market_data.giaDongCua:
+                    market_price = float(market_data.giaDongCua) * 1000
+                elif market_data.giaDieuChinh:
+                    market_price = float(market_data.giaDieuChinh) * 1000
 
-            # --- TÍNH TOÁN ---
+            # --- TÍNH TOÁN (Giữ nguyên logic của bạn) ---
             avg_TTS = safe_divide(TTS_N + TTS_N_1, 2)
             avg_VCSH = safe_divide(VCSH_N + VCSH_N_1, 2)
 
@@ -138,7 +162,6 @@ def get_financial_ratios_data():
             pb = safe_divide(market_price, bvps)
             beta = 0 
 
-            # Lưu vào results
             results[company_code]["annual_reports"][year] = {
                 "ROA": roa,
                 "ROE": roe,
@@ -162,7 +185,7 @@ try:
 except KeyError:
     print("Vui lòng đặt GEMINI_API_KEY trong biến môi trường của bạn.")
     # Hoặc đặt cứng ở đây (không khuyến khích):
-    api_key = 'AIzaSyC0b2RVCyf_s176dBoo6ksmt_XsJ_XoXV4'
+    api_key = settings.GEMINI_API_KEY
 
 
 client = genai.Client(api_key=api_key)
@@ -221,13 +244,13 @@ def call_gemini(user_question: str) -> str:
     try:
         # Gọi Gemini
         response = client.models.generate_content(
-            model="gemini-2.0-flash", # Hoặc gemini-1.5-flash tùy version bạn có
+            model="gemini-2.5-flash", # Hoặc gemini-1.5-flash tùy version bạn có
             contents=prompt_template,
         )
         return response.text
     except Exception as e:
         print(f"Lỗi khi gọi Gemini: {e}")
-        return "Xin lỗi, hệ thống phân tích đang gặp sự cố kết nối. Vui lòng thử lại sau."
+        return f"Xin lỗi, hệ thống phân tích đang gặp sự cố kết nối. Vui lòng thử lại sau.\n{e}"
     
 
 
@@ -244,15 +267,43 @@ def format_number(value, is_percent=True):
     return None # Nếu là "Không đủ dữ liệu" hoặc lỗi
 
 def update_financial_ratios_sheet(data_dict):
-    """
-    Kết nối Google Sheets và cập nhật với dữ liệu từ view.
+
+    # --- 1. XÁC THỰC THÔNG MINH (Hybrid Auth) ---
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
     
-    :param data_dict: Đây chính là biến 'results' từ view của bạn.
-    """
+    creds = None
+    
+    # Cách 1: Ưu tiên lấy từ Biến môi trường (Dành cho Cloud Run)
+    json_creds_env = os.environ.get('GOOGLE_SHEETS_CREDENTIALS')
+    
+    if json_creds_env:
+        try:
+            # Parse chuỗi JSON từ biến môi trường thành Dictionary
+            creds_dict = json.loads(json_creds_env)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            print("✅ Đã load credentials từ Biến Môi Trường (Cloud).", flush=True)
+        except json.JSONDecodeError as e:
+            print(f"❌ Lỗi decode JSON từ biến môi trường: {str(e)}", flush=True)
+
+    # Cách 2: Nếu không có biến môi trường, tìm file (Dành cho Local)
+    if not creds:
+        local_file_path = 'credentials.json'
+        if os.path.exists(local_file_path):
+            try:
+                creds = Credentials.from_service_account_file(local_file_path, scopes=scopes)
+                print(f"✅ Đã load credentials từ file {local_file_path} (Local).", flush=True)
+            except Exception as e:
+                print(f"❌ Lỗi đọc file credentials: {str(e)}", flush=True)
+        else:
+            print("❌ LỖI NGHIÊM TRỌNG: Không tìm thấy Credentials ở cả ENV và FILE.", flush=True)
+            return False # Dừng hàm nếu không có quyền truy cập
     
     # 1. Xác thực
     # Đảm bảo file service_account.json nằm ở đúng đường dẫn
-    gc = gspread.service_account(filename='credentials.json')
+    gc = gspread.authorize(creds)
 
     # 2. Mở Sheet bằng tên
     # Đảm bảo tên này khớp chính xác với Google Sheet của bạn

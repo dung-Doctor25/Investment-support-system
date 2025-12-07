@@ -1,3 +1,4 @@
+import os
 from django.shortcuts import render
 from .models import *
 from django.http import JsonResponse
@@ -11,9 +12,6 @@ from django.http import HttpResponse
 
 
 def home(request):
-    market_data = ThiTruongChungKhoang.objects.all()[:5]
-    for obj in market_data:
-        print(obj.__dict__, flush=True)
     return render(request, 'home.html')
 
 def congty_form(request):
@@ -50,8 +48,24 @@ def get_CongTy_data(request):
     data = list(CongTy.objects.values())
     return JsonResponse(data, safe=False)
 def get_TongHopTaiChinh_data(request):
-    data = list(TongHopTaiChinh.objects.values())
-    return JsonResponse(data, safe=False)
+    company_id = request.GET.get('company_id')
+    print('Company ID received:', company_id, flush=True)
+    if not company_id:
+        return JsonResponse([], safe=False)
+
+    try:
+        # Chỉ query báo cáo của ĐÚNG công ty đó -> Cực nhanh
+        data = list(
+            TongHopTaiChinh.objects
+            .filter(congTy_id=company_id)
+            .values()
+            .order_by('-nam', '-quy')[ :10 ]  # Giới hạn 10 bản ghi gần nhất
+        )  # Giới hạn 10 bản ghi gần nhất
+       
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        print(f'Error retrieving reports for company {company_id}: {str(e)}', flush=True)
+        return JsonResponse({'error': str(e)}, status=500)
 def get_ThiTruongChungKhoan_data(request):
     data = list(ThiTruongChungKhoang.objects.values())
     return JsonResponse(data, safe=False)
@@ -520,151 +534,29 @@ from decimal import Decimal, InvalidOperation # Import thêm
 # 1. IMPORT HÀM MỚI CỦA BẠN
 from .gemini_utils import update_financial_ratios_sheet
 
-def calculate_financial_ratios_view(request):
-    
-    # 1. Xác định 5 năm gần nhất có dữ liệu
-    # Lấy năm mới nhất có trong CSDL
-    latest_report = (
-        TongHopTaiChinh.objects
-        .exclude(congTy__maChungKhoan__in=["SCS",'a'])
-        .aggregate(max_nam=Max('nam'))
-    )
-
-    latest_year = latest_report.get('max_nam')
-
-    if not latest_year:
-        return JsonResponse({"error": "Không có dữ liệu báo cáo tài chính"}, status=404)
-
-    # Chúng ta cần 5 năm để *tính toán* (N), và 1 năm trước đó (N-1)
-    # Ví dụ: tính cho 2024, 2023, 2022, 2021, 2020.
-    # Chúng ta sẽ cần dữ liệu từ 2019 (để tính cho 2020).
-    start_calc_year = latest_year - 4
-    start_data_year = latest_year - 5 # Năm N-1 của năm đầu tiên
-    
-    # Danh sách các năm cần lấy dữ liệu (6 năm)
-    years_to_query = list(range(start_data_year, latest_year + 1))
-    
-    # Danh sách các năm sẽ có trong kết quả (5 năm)
-    years_to_calculate = list(range(start_calc_year, latest_year + 1))
-
-    all_companies = CongTy.objects.all()
-    
-    # Đây là JSON_OUTPUT cuối cùng
-    results = {}
-
-    # 2. Lặp qua từng công ty
-    for company in all_companies:
-        if company.maChungKhoan in ['a']:
-            continue
-        company_code = company.maChungKhoan
-        results[company_code] = {
-            "tenCongTy": company.tenCongTy,
-            "annual_reports": {}
-        }
-        
-        # 3. Lấy tất cả dữ liệu BCTC của công ty này trong 6 năm qua
-        # Dùng select_related để tối ưu, vì chúng ta sẽ dùng cả 3 bảng
-        reports = TongHopTaiChinh.objects.filter(
-            congTy=company,
-            nam__in=years_to_query,
-            quy__in=[0, 5]  # Giả sử 0 hoặc 5 là báo cáo năm (theo ghi chú model của bạn)
-        ).select_related(
-            'bangcandoiketoan',
-            'bangketquakinhdoanh',
-
-        ).order_by('nam')
-
-        # 4. Tổ chức lại dữ liệu vào một dict để dễ truy cập (N và N-1)
-        processed_data = {}
-        for report in reports:
-            try:
-                bcdt = report.bangcandoiketoan  
-                kqkd = report.bangketquakinhdoanh
-                
-                # Lưu trữ các số liệu quan trọng
-                processed_data[report.nam] = {
-                    "LoiNhuanSauThue": kqkd.loiNhuanSauThueThuNhapDoanhNghiep,
-                    "TongTaiSan": bcdt.tongCongTaiSan,
-                    "VonChuSoHuu": bcdt.vonChuSoHuu, # D. VỐN CHỦ SỞ HỮU
-                    "TaiSanNganHan": bcdt.taiSanNganHan,
-                    "NoNganHan": bcdt.noNganHan,
-                    "NoPhaiTra": bcdt.noPhaiTra, # C. NỢ PHẢI TRẢ
-                }
-            except (BangCanDoiKeToan.DoesNotExist, BangKetQuaKinhDoanh.DoesNotExist, AttributeError):
-                # Bỏ qua nếu năm đó bị thiếu BCDKT hoặc KQKD
-                continue
-
-        # 5. Tính toán các chỉ số cho 5 năm gần nhất
-        for year in years_to_calculate:
-            data_N = processed_data.get(year)
-            data_N_minus_1 = processed_data.get(year - 1)
-            
-            # Phải có dữ liệu của cả N và N-1 mới tính được
-            if not data_N or not data_N_minus_1:
-                results[company_code]["annual_reports"][year] = "Không đủ dữ liệu"
-                continue
-
-            # === Bắt đầu tính toán ===
-            
-            # --- Dữ liệu năm N ---
-            LNST_N = data_N["LoiNhuanSauThue"]
-            TTS_N = data_N["TongTaiSan"]
-            VCSH_N = data_N["VonChuSoHuu"]
-            TSNH_N = data_N["TaiSanNganHan"]
-            NNH_N = data_N["NoNganHan"]
-            NPT_N = data_N["NoPhaiTra"]
-            
-            # --- Dữ liệu năm N-1 (dùng cho tăng trưởng và tính bình quân) ---
-            LNST_N_1 = data_N_minus_1["LoiNhuanSauThue"]
-            TTS_N_1 = data_N_minus_1["TongTaiSan"]
-            VCSH_N_1 = data_N_minus_1["VonChuSoHuu"]
-
-            # --- Tính giá trị bình quân ---
-            avg_TTS = safe_divide(TTS_N + TTS_N_1, 2)
-            avg_VCSH = safe_divide(VCSH_N + VCSH_N_1, 2)
-
-            # --- Tính các chỉ số ---
-            # 1. ROA = Lợi nhuận sau thuế / Tổng tài sản bình quân
-            roa = safe_divide(LNST_N, avg_TTS)
-            
-            # 2. ROE = Lợi nhuận sau thuế / Vốn chủ sở hữu bình quân
-            roe = safe_divide(LNST_N, avg_VCSH)
-            
-            # 3. Tỷ suất thanh toán hiện hành (Current Ratio) = Tài sản ngắn hạn / Nợ ngắn hạn
-            current_ratio = safe_divide(TSNH_N, NNH_N)
-            
-            # 4. Cơ cấu nợ (Debt-to-Assets) = Tổng Nợ phải trả / Tổng Tài sản
-            # (Đây là một cách hiểu "dept" và "cơ cấu nợ")
-            debt_to_assets = safe_divide(NPT_N, TTS_N)
-            
-            # 5. Tăng trưởng tài sản = (TTS_N - TTS_N_1) / TTS_N_1
-            asset_growth = safe_divide(TTS_N - TTS_N_1, TTS_N_1)
-
-            # 6. Tăng trưởng lợi nhuận = (LNST_N - LNST_N_1) / LNST_N_1
-            profit_growth = safe_divide(LNST_N - LNST_N_1, LNST_N_1)
-
-            # Lưu kết quả của năm này
-            results[company_code]["annual_reports"][year] = {
-                "ROA": roa,
-                "ROE": roe,
-                "TySuatThanhToanHienHanh": current_ratio,
-                "HeSoNoTrenTongTaiSan": debt_to_assets,
-                "TangTruongTaiSan": asset_growth,
-                "TangTruongLoiNhuan": profit_growth,
-            }
-            # print(results, flush=True)
-    # 6. Cập nhật Google Sheet
-    update_financial_ratios_sheet(results)
-    print("Đã cập nhật Google Sheet từ view.", flush=True)
-    # Trả về kết quả cuối cùng
-    return JsonResponse(results, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
-
 
 # View API JSON cũ (được rút gọn)
 def calculate_financial_ratios_view(request):
     data = get_financial_ratios_data()
     if data is None:
         return JsonResponse({"error": "Không có dữ liệu báo cáo tài chính"}, status=404)
-    update_financial_ratios_sheet(data) # Uncomment nếu cần update Google Sheet
+    
+    # update_financial_ratios_sheet(data) # Uncomment nếu cần update Google Sheet
     return JsonResponse(data, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
 
+import threading
+
+# View API JSON cũ (được rút gọn)
+def update_google_sheet(request):
+    data = get_financial_ratios_data()
+    json_creds = os.environ.get('GOOGLE_SHEETS_CREDENTIALS')
+    
+    if not json_creds:
+        print("Thiếu credentials", flush=True)
+        
+    if data is None:
+        return JsonResponse({"error": "Không có dữ liệu báo cáo tài chính"}, status=404)
+    thread = threading.Thread(target=update_financial_ratios_sheet, args=(data,))
+    thread.start()    
+    
+    return JsonResponse(data, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})

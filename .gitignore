@@ -3,3 +3,5 @@ db.sqlite3
 crawl/data/
 crawl/backup/
 credentials.json
+.env
+data_backup_v2.sql
