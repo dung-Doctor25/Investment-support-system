@@ -211,8 +211,28 @@ class BangKetQuaKinhDoanh(models.Model):
         verbose_name = "Bảng Kết Quả Kinh Doanh"
         verbose_name_plural = "Các Bảng Kết Quả Kinh Doanh"
 
+class TinTuc(models.Model):
+    title = models.CharField(max_length=500, verbose_name="Tiêu đề bài viết", blank=True, null=True)
+    content = models.TextField(verbose_name="Nội dung bài viết", blank=True, null=True)
+    link = models.URLField(max_length=1000, verbose_name="Liên kết bài viết", blank=True, null=True)
+    time_post = models.DateTimeField(verbose_name="Thời gian đăng bài", blank=True, null=True)
+    summary = models.TextField(verbose_name="Tóm tắt bài viết", blank=True, null=True)
 
+    def __str__(self):
+        return self.title
 
+    class Meta:
+        verbose_name = "Bài Tin Tức"
+        verbose_name_plural = "Các Bài Tin Tức"
+    class Meta:
+        verbose_name = "Bài Tin Tức"
+        verbose_name_plural = "Các Bài Tin Tức"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['title', 'time_post'],
+                name='unique_title_time_post'
+            )
+        ]
 
 class Conversation(models.Model):
  

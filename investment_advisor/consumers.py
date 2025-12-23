@@ -6,7 +6,7 @@ from asgiref.sync import sync_to_async # Rất quan trọng!
 # --- Import hàm Gemini của bạn ---
 # Giả sử bạn đặt hàm call_gemini trong file "gemini_utils.py"
 # (Bạn cần tạo file này và dán hàm call_gemini vào)
-from .gemini_utils import call_gemini 
+from .utils import call_gemini 
 
 # --- Wrapper để gọi hàm đồng bộ (blocking) ---
 # Hàm call_gemini của bạn là hàm đồng bộ (blocking).

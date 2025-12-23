@@ -377,43 +377,110 @@ def update_financial_ratios_sheet(data_dict):
     return True
 
 
-###----------------------Nhóm hàm intelligence chat bot---------------------###
 
-class TradingEnv:
-    def __init__(self, data, initial_balance=100000):
-        self.data = data
-        self.initial_balance = initial_balance
-        self.reset()
-    
-    def reset(self):
-        self.cash = self.initial_balance
-        self.position = 0
-        self.current_step = 0
-        self.portfolio_values = []
-        return self._get_state()
-    
-    def _get_state(self):
-        return self.data.iloc[self.current_step]
-    
-    def step(self, action):
-        """
-        action: 'BUY', 'SELL', 'HOLD'
-        """
-        price = self.data.iloc[self.current_step]["Close"]
-        
-        if action == "BUY" and self.cash >= price:
-            self.position += 1
-            self.cash -= price
-        elif action == "SELL" and self.position > 0:
-            self.position -= 1
-            self.cash += price
-        
-        portfolio_value = self.cash + self.position * price
-        self.portfolio_values.append(portfolio_value)
+#######################################DATA SERVICE FUNCTION###################################################################################
+# data_services.py
+from .models import *
+from django.db.models import Q
+import datetime
 
-        self.current_step += 1
-        done = self.current_step >= len(self.data) - 1
-        return self._get_state(), portfolio_value, 
+def get_formatted_news(symbol, date):
+    """
+    Lấy 5 tin tức chung mới nhất trong ngày (không lọc theo mã chứng khoán).
+    """
+    # Xác định khoảng thời gian từ 00:00 đến 23:59 của ngày đó
+    start_date = datetime.datetime.combine(date, datetime.time.min)
+    end_date = datetime.datetime.combine(date, datetime.time.max)
+
+    # Truy vấn: 
+    # 1. Lọc theo ngày (time_post nằm trong range)
+    # 2. Sắp xếp mới nhất lên đầu (-time_post)
+    # 3. Cắt lấy 5 tin đầu tiên ([:5])
+    news_list = TinTuc.objects.filter(
+        time_post__range=(start_date, end_date)
+    ).order_by('-time_post')[:5]
+
+    if not news_list:
+        return "No news found for today."
+
+    text = ""
+    for n in news_list:
+        # Format giờ phút
+        time_str = n.time_post.strftime('%H:%M') if n.time_post else "N/A"
+        
+        # Ưu tiên lấy summary, nếu không có thì lấy 100 ký tự đầu của content
+        content_preview = n.summary if n.summary else (n.content[:100] + "..." if n.content else "")
+        
+        # Dòng kết quả: [Giờ] Tiêu đề: Nội dung tóm tắt
+        text += f"- [{time_str}] {n.title}: {content_preview}\n"
+        
+    return text
+
+
+def get_formatted_financials(symbol, date):
+    """Lấy BCTC gần nhất so với ngày hiện tại"""
+    # Tìm kỳ báo cáo gần nhất đã công bố trước ngày này
+    # Logic: Tìm TongHopTaiChinh mới nhất
+    cty = CongTy.objects.filter(maChungKhoan=symbol).first()
+    if not cty: return "Company not found."
+
+    # Giả sử năm hiện tại, quý gần nhất
+    report_wrapper = TongHopTaiChinh.objects.filter(
+        congTy=cty,
+        nam__lte=date.year
+    ).order_by('-nam', '-quy').first()
+
+    if not report_wrapper:
+        return "No financial report data available."
+
+    # Lấy KQKD và CĐKT
+    kqkd = BangKetQuaKinhDoanh.objects.filter(baoCao=report_wrapper).first()
+    cdkt = BangCanDoiKeToan.objects.filter(baoCao=report_wrapper).first()
+
+    text = f"**Report Period: Q{report_wrapper.quy}/{report_wrapper.nam}**\n"
+    
+    if kqkd:
+        text += f"- Revenue: {kqkd.doanhThuThuan} VND\n"
+        text += f"- Net Income: {kqkd.loiNhuanSauThueThuNhapDoanhNghiep} VND\n"
+        text += f"- Gross Profit: {kqkd.loiNhuanGop} VND\n"
+    
+    if cdkt:
+        text += f"- Total Assets: {cdkt.tongCongTaiSan} VND\n"
+        text += f"- Total Equity: {cdkt.vonChuSoHuu} VND\n"
+        text += f"- Total Debt: {cdkt.noPhaiTra} VND\n"
+
+    return text
+
+def get_price_action(symbol, date):
+    """Lấy biến động giá gần đây"""
+    # Lấy giá của ngày hiện tại và 30 ngày trước
+    prices = ThiTruongChungKhoang.objects.filter(
+        congTy__maChungKhoan=symbol,
+        ngay__lte=date
+    ).order_by('-ngay')[:30]
+
+    if not prices.exists():
+        return "No price data."
+
+    today_price = prices[0]
+    prev_price = prices[1] if len(prices) > 1 else today_price
+    
+    # Tính toán đơn giản
+    change = today_price.giaDongCua - prev_price.giaDongCua
+    percent = (change / prev_price.giaDongCua * 100) if prev_price.giaDongCua else 0
+
+    text = f"- Close Price: {today_price.giaDongCua}\n"
+    text += f"- Daily Change: {change} ({percent:.2f}%)\n"
+    text += f"- Volume: {today_price.klKhopLenh}\n"
+    
+    # Trend 7 ngày
+    if len(prices) >= 7:
+        p7 = prices[6]
+        trend_7d = ((today_price.giaDongCua - p7.giaDongCua) / p7.giaDongCua) * 100
+        text += f"- 7-Day Trend: {trend_7d:.2f}%\n"
+
+    return text
+
 
 
 

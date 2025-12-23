@@ -1,0 +1,4 @@
+data_backup_v2.sql
+__pycache__/
+.env
+evn/

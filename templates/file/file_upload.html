@@ -16,7 +16,12 @@
     <div class="mb-3">
         <label for="csvFile" class="form-label">Chọn file bảng kết quả kinh doanh:</label>
         <input class="form-control" type="file" id="csvFileProfit" accept=".csv">
-    </div>     
+    </div> 
+    <div class="mb-3 p-3 border rounded bg-light">
+        <label for="jsonFileNews" class="form-label fw-bold">4. Chọn file Tin Tức (JSON):</label>
+        <input class="form-control" type="file" id="jsonFileNews" accept=".json">
+        <small class="text-muted">Định dạng file: JSON Array chứa các object tin tức.</small>
+    </div>    
     <button id="processBtn" class="btn btn-primary">Xử lý và Gửi Dữ liệu ⚙️</button>
 
     <hr>
@@ -32,9 +37,13 @@
         const fileInputMarket = document.getElementById('csvFileMarket');
         const fileInputBalance = document.getElementById('csvFileBalance');
         const fileInputProfit = document.getElementById('csvFileProfit');
+        const fileInputNews = document.getElementById('jsonFileNews');
         const resultDiv = document.getElementById('result');
 
-        if (fileInputMarket.files.length === 0 && fileInputBalance.files.length === 0 && fileInputProfit.files.length === 0) {
+        if (fileInputMarket.files.length === 0 && 
+            fileInputBalance.files.length === 0 && 
+            fileInputProfit.files.length === 0 &&
+            fileInputNews.files.length === 0) {
             resultDiv.innerHTML = `<div class="alert alert-warning">Vui lòng chọn ít nhất một file.</div>`;
             return;
         }
@@ -42,22 +51,22 @@
 
         // Xử lý file Thị trường
         const filemarket = fileInputMarket.files[0];
-        resultDiv.innerHTML = `<div class="alert alert-info">Đang đọc và xử lý file Thị trường...</div>`;
+        // resultDiv.innerHTML = `<div class="alert alert-info">Đang đọc và xử lý file Thị trường...</div>`;
         // xử lí file bảng cân đối kế toán
         const filebalance = fileInputBalance.files[0];
-        resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng CĐKT...</div>`;
+        // resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng CĐKT...</div>`;
         // xử lí file bảng kết quả kinh doanh
         const fileprofit = fileInputProfit.files[0];
-        resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng KQKD...</div>`;
-
+        // resultDiv.innerHTML += `<div class="alert alert-info">Đang đọc và xử lý file Bảng KQKD...</div>`;
+       
         //============================================= Streaming xử lý tải file lớn (bảng cân đối kế toán)===============================================================
         
         let batch = [];
         const BATCH_SIZE = 750; // Xử lý và gửi 700 dòng/lần. Bạn có thể tăng/giảm số này.
         let rowCounter = 0;
-
+        
         // Hàm helper để gửi 1 lô dữ liệu lên server
-
+        
         async function sendBatch(dataToSend) {
             if (dataToSend.length === 0) return;
 
@@ -77,7 +86,7 @@
             if (sizeInBytes > 2500000) { // Hơi thấp hơn 2.5MB để an toàn
                 console.warn(`Payload (${sizeInMB} MB) CÓ THỂ vượt quá giới hạn 2.5MB của server!`);
             }
-
+            
             resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${rowCounter} dòng. Đang gửi lô ${dataToSend.length} dòng (${sizeInMB} MB)...</div>`;
             
             try {
@@ -102,34 +111,199 @@
                 throw error;
             }
         }   
+
+        async function sendBatchMarket(dataToSend, label = "Thị trường") {
+            if (dataToSend.length === 0) return;
+
+            // 1. Chuyển sang JSON và tính kích thước
+            const jsonString = JSON.stringify(dataToSend);
+            const blob = new Blob([jsonString]);
+            const sizeInMB = blob.size / 1024 / 1024;
+            const MAX_SIZE_MB = 2.5; // Giới hạn cứng
+
+            // 2. KIỂM TRA: Nếu lớn hơn 2.5MB -> Chia đôi và gọi đệ quy
+            if (sizeInMB > MAX_SIZE_MB) {
+                console.warn(`⚠️ Lô ${label} nặng ${sizeInMB.toFixed(2)} MB (> 2.5MB). Đang tự động chia nhỏ...`);
+                
+                const mid = Math.floor(dataToSend.length / 2);
+                if (mid === 0) return; // Trường hợp 1 dòng quá lớn (hiếm gặp)
+
+                const firstHalf = dataToSend.slice(0, mid);
+                const secondHalf = dataToSend.slice(mid);
+
+                // Gọi đệ quy cho 2 nửa
+                await sendBatchMarket(firstHalf, `${label} (Phần A)`);
+                await sendBatchMarket(secondHalf, `${label} (Phần B)`);
+                return; 
+            }
+
+            // 3. Nếu kích thước OK -> Gửi
+            resultDiv.innerHTML += `<div class="text-primary mb-1">⏳ Đang gửi lô ${label}: ${dataToSend.length} dòng (${sizeInMB.toFixed(2)} MB)...</div>`;
+            resultDiv.scrollTop = resultDiv.scrollHeight; // Tự cuộn
+
+            try {
+                const response = await fetch('/api/post_thitruong_data/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: jsonString
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Lỗi server');
+
+                resultDiv.innerHTML += `<div class="text-success mb-1">✅ Gửi lô ${label} thành công!</div>`;
+                resultDiv.scrollTop = resultDiv.scrollHeight;
+
+            } catch (error) {
+                console.error('Lỗi gửi batch:', error);
+                resultDiv.innerHTML += `<div class="text-danger mb-1">❌ Lỗi gửi ${label}: ${error.message}</div>`;
+                throw error; // Ném lỗi để dừng parser nếu cần
+            }
+        }
+        //============================================= Xử lý file Tin Tức===============================================================
+        // Hàm tiện ích: Log kết quả ra màn hình
+        function logResult(msg, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const color = type === 'error' ? 'text-danger' : (type === 'success' ? 'text-success' : 'text-primary');
+            resultDiv.innerHTML += `<div class="${color} mb-1">${msg}</div>`;
+            resultDiv.scrollTop = resultDiv.scrollHeight; // Tự cuộn xuống dưới
+        }
+        async function sendBatchNews(dataToSend, url, dataName) {
+            if (dataToSend.length === 0) return;
+
+            // 1. Chuyển sang chuỗi để tính kích thước
+            const jsonString = JSON.stringify(dataToSend);
+            const blob = new Blob([jsonString]);
+            const sizeInBytes = blob.size;
+            const sizeInMB = sizeInBytes / 1024 / 1024;
+            const MAX_SIZE_MB = 2.5; // Giới hạn cứng 2.5MB
+
+            // 2. KIỂM TRA: Nếu lớn hơn 2.5MB -> Chia đôi và gọi lại hàm (Đệ quy)
+            if (sizeInMB > MAX_SIZE_MB) {
+                logResult(`⚠️ Lô ${dataName} nặng ${sizeInMB.toFixed(2)} MB (> 2.5MB). Đang tự động chia nhỏ...`, 'warning');
+                
+                const mid = Math.floor(dataToSend.length / 2);
+                
+                // Trường hợp xấu nhất: 1 dòng tin tức duy nhất mà nặng hơn 2.5MB
+                if (mid === 0) {
+                    logResult(`❌ Lỗi: Một bài viết đơn lẻ quá lớn (${sizeInMB.toFixed(2)} MB), không thể gửi!`, 'error');
+                    return; 
+                }
+
+                const firstHalf = dataToSend.slice(0, mid);
+                const secondHalf = dataToSend.slice(mid);
+
+                // Gọi đệ quy cho 2 nửa
+                await sendBatchNews(firstHalf, url, `${dataName} (Phần A)`);
+                await sendBatchNews(secondHalf, url, `${dataName} (Phần B)`);
+                return; // Dừng hàm hiện tại, để các hàm con xử lý
+            }
+
+            // 3. Nếu kích thước OK (< 2.5MB) -> Tiến hành gửi
+            logResult(`⏳ Đang gửi lô ${dataName}: ${dataToSend.length} dòng (${sizeInMB.toFixed(2)} MB)...`);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-CSRFToken': getCookie('csrftoken') 
+                    },
+                    body: jsonString
+                });
+                
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Lỗi server');
+                
+                logResult(`✅ Gửi lô ${dataName} thành công!`, 'success');
+                
+            } catch (error) {
+                console.error(`Lỗi gửi ${dataName}:`, error);
+                logResult(`❌ Lỗi gửi ${dataName}: ${error.message}`, 'error');
+                throw error; 
+            }
+        }
+
+        if (fileInputNews.files.length > 0) {
+            "🟦 Bắt đầu xử lý file Tin Tức JSON...";
+            const file = fileInputNews.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(e) {
+                try {
+                    const fullData = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(fullData)) {
+                        logResult("❌ File JSON phải là một mảng (Array).", 'error');
+                        return;
+                    }
+
+                    // Chia nhỏ mảng JSON thành các batch
+                    for (let i = 0; i < fullData.length; i += BATCH_SIZE) {
+                        const batchNews = fullData.slice(i, i + BATCH_SIZE);
+                        await sendBatchNews(batchNews, '/api/post_TinTuc_data/', `Tin Tức (${i+1}-${i+batchNews.length})`);
+                    }
+                    
+                    logResult("🏁 Hoàn tất file Tin Tức.", 'success');
+
+                } catch (error) {
+                    logResult("❌ Lỗi đọc file JSON: " + error.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }      
         //============================================= Xử lý file market===============================================================
         if (fileInputMarket.files.length > 0) {
-            // 1. Dùng Papa Parse để đọc và phân tích file CSV
-            Papa.parse(filemarket, {        
-                header: true, // Rất quan trọng: dòng đầu tiên sẽ là key của object
-                skipEmptyLines: true,
-                complete: async function(results) {
-                console.log("Dữ liệu gốc từ CSV:", results.data);
+            const filemarket = fileInputMarket.files[0];
+            let batchMarket = [];
+            const BATCH_SIZE_MARKET = 500; // Gom 500 dòng rồi mới kiểm tra size và gửi
 
-                // 2. Chuyển đổi dữ liệu để khớp với model Django
-                const processedData = results.data.map(row => {
-                    // Dọn dẹp và chuyển đổi kiểu dữ liệu
+            resultDiv.innerHTML = `<div class="alert alert-info">Đang đọc và xử lý file Thị trường (Streaming)...</div>`;
+
+            Papa.parse(filemarket, {
+                header: true,
+                skipEmptyLines: true,
+                step: async function(results, parser) {
+                    const row = results.data;
+
+                    // --- Logic chuyển đổi dữ liệu (Mapping) ---
                     const cleanValue = (val) => val ? val.toString().trim().replace(/,/g, '') : '';
                     const toInt = (val) => val ? parseInt(cleanValue(val), 10) : null;
                     const toFloat = (val) => val ? parseFloat(cleanValue(val)) : null;
 
-                    // Chuyển đổi ngày từ DD/MM/YYYY sang YYYY-MM-DD
+                    // --- ĐOẠN CODE XỬ LÝ NGÀY MỚI (CHẶT CHẼ HƠN) ---
                     let formattedDate = null;
-                    if (row.Ngày) {
-                        const parts = row.Ngày.split('/');
+                    if (row.Ngày && typeof row.Ngày === 'string') {
+                        // Xóa khoảng trắng thừa
+                        const dateStr = row.Ngày.trim();
+                        const parts = dateStr.split('/');
+                        
+                        // Kiểm tra đủ 3 phần: Ngày, Tháng, Năm
                         if (parts.length === 3) {
-                            formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                            let day = parts[0].trim();
+                            let month = parts[1].trim();
+                            let year = parts[2].trim();
+
+                            // Kiểm tra nếu thiếu dữ liệu (rỗng)
+                            if (day === "" || month === "" || year === "") {
+                                console.log('dòng thứ', row.Ngày,row['Giá (nghìn VNĐ)_Đóng cửa']);
+                                console.warn(`⚠️ Dòng lỗi định dạng ngày (bỏ qua): ${row.Ngày} - Mã: ${row.Ma}`);
+                            } else {
+                                // Tự động thêm số 0 nếu thiếu (ví dụ: 1 -> 01)
+                                day = day.padStart(2, '0');
+                                month = month.padStart(2, '0');
+                                
+                                // Tạo format chuẩn YYYY-MM-DD
+                                formattedDate = `${year}-${month}-${day}`;
+                            }
                         }
                     }
+                    // ------------------------------------------------
 
-                    return {
-                        // Key bên trái là tên trường trong model Django
-                        // Key bên phải là tên cột trong file CSV (từ header)
+                    const processedRow = {
                         ngay: formattedDate,
                         congTy: row.Ma ? row.Ma.trim().toUpperCase() : null,
                         giaDongCua: toFloat(row['Giá (nghìn VNĐ)_Đóng cửa']),
@@ -143,41 +317,38 @@
                         giaCaoNhat: toFloat(row['Giá (nghìn VNĐ)_Cao nhất']),
                         giaThapNhat: toFloat(row['Giá (nghìn VNĐ)_Thấp nhất']),
                     };
-                }).filter(item => item.congTy && item.ngay); // Lọc bỏ các dòng không hợp lệ
 
-                if (processedData.length === 0) {
-                    resultDiv.innerHTML = `<div class="alert alert-danger">Không tìm thấy dữ liệu hợp lệ trong file.</div>`;
-                    return;
+                    // Chỉ thêm nếu dòng hợp lệ
+                    if (processedRow.congTy && processedRow.ngay) {
+                        batchMarket.push(processedRow);
+                    }
+
+                    // --- Kiểm tra xem đã đủ lô chưa ---
+                    if (batchMarket.length >= BATCH_SIZE_MARKET) {
+                        parser.pause(); // Tạm dừng đọc file
+                        try {
+                            // Gọi hàm gửi (Hàm này sẽ tự chia nhỏ nếu > 2.5MB)
+                            await sendBatchMarket([...batchMarket], `Thị trường`);
+                            batchMarket = []; // Xóa lô cũ sau khi gửi xong
+                            parser.resume();  // Tiếp tục đọc
+                        } catch (e) {
+                            console.error("Dừng xử lý do lỗi gửi.");
+                            parser.abort(); // Dừng hẳn nếu lỗi mạng
+                        }
+                    }
+                },
+                complete: async function() {
+                    // Gửi nốt những dòng còn lại trong lô cuối cùng
+                    if (batchMarket.length > 0) {
+                        await sendBatchMarket(batchMarket, `Thị trường (Cuối)`);
+                    }
+                    resultDiv.innerHTML += `<div class="alert alert-success mt-2">🏁 Hoàn tất xử lý file Thị trường!</div>`;
+                },
+                error: function(error) {
+                    console.error("Lỗi khi parse CSV:", error);
+                    resultDiv.innerHTML += `<div class="alert alert-danger">Lỗi đọc file CSV: ${error.message}</div>`;
                 }
-
-                console.log("Dữ liệu đã xử lý:", processedData);
-                resultDiv.innerHTML = `<div class="alert alert-info">Đã xử lý ${processedData.length} dòng. Đang gửi lên server...</div>`;
-
-                // 3. Gửi mảng JSON đã xử lý lên server
-                try {
-                    const response = await fetch('/api/post_thitruong_data/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify(processedData)
-                    });
-                    
-                    const data = await response.json();
-                    const alertClass = response.ok ? 'alert-success' : 'alert-danger';
-                    resultDiv.innerHTML = `<div class="alert ${alertClass}">${data.message}</div>`;
-
-                } catch (error) {
-                    console.error('Lỗi khi gửi dữ liệu:', error);
-                    resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi kết nối. Không thể gửi dữ liệu.</div>`;
-                }
-            },
-            error: function(error) {
-                console.error("Lỗi khi parse CSV:", error);
-                resultDiv.innerHTML = `<div class="alert alert-danger">Không thể đọc file CSV. Vui lòng kiểm tra định dạng file.</div>`;
-            }
-        });
+            });
         }
 
 
@@ -197,7 +368,7 @@
                 // --- BẢN ĐỒ ÁNH XẠ ĐẦY ĐỦ ---
                 const headerMap = {
                     // Định danh
-                    'ma': 'ma',
+                    'ma': 'ma', 
                     'years': 'years',
                     'Quý': 'quy',
 

@@ -1,9 +1,6 @@
 from django.contrib import admin
 from django.contrib import messages
-from .models import (
-    CongTy, ThiTruongChungKhoang, TongHopTaiChinh, 
-    BangCanDoiKeToan, BangKetQuaKinhDoanh, Conversation, Message
-)
+from .models import *
 
 # --- PHẦN XỬ LÝ NÚT XÓA ---
 
@@ -49,3 +46,4 @@ admin.site.register(BangCanDoiKeToan, CommonAdmin)
 admin.site.register(BangKetQuaKinhDoanh, CommonAdmin)
 admin.site.register(Conversation, CommonAdmin)
 admin.site.register(Message, CommonAdmin)
+admin.site.register(TinTuc, CommonAdmin)

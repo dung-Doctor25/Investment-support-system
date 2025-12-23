@@ -25,6 +25,7 @@ urlpatterns += [
     path('api/post_tonghoptaichinh_data/', views.post_tonghoptaichinh_data, name='post_tonghoptaichinh_data'),
     path('api/post_bangcandoiketoan_data/', views.post_bangcandoiketoan_data, name='post_bangcandoiketoan_data'),
     path('api/post_bangketquakinhdoanh_data/', views.post_bangketquakinhdoanh_data, name='post_bangketquakinhdoanh_data'),
+    path('api/post_TinTuc_data/', views.post_TinTuc_data, name='post_TinTuc_data'),
 ]
 
 #retrieve querry

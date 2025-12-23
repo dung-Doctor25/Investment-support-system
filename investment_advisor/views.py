@@ -1,15 +1,17 @@
-import os
 from django.shortcuts import render
 from .models import *
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-import json
-from .gemini_utils import get_financial_ratios_data # Import hàm vừa tách
+from decimal import Decimal, InvalidOperation
+from django.http import JsonResponse,HttpResponse
+from django.db.models import Sum, Max, Count, F, Q
+from .utils import update_financial_ratios_sheet,get_financial_ratios_data
+import threading
 import openpyxl
-from django.http import HttpResponse
-
-
+import json
+import os
+import time
+from django.utils.dateparse import parse_datetime
 
 def home(request):
     return render(request, 'home.html')
@@ -49,7 +51,7 @@ def get_CongTy_data(request):
     return JsonResponse(data, safe=False)
 def get_TongHopTaiChinh_data(request):
     company_id = request.GET.get('company_id')
-    print('Company ID received:', company_id, flush=True)
+    
     if not company_id:
         return JsonResponse([], safe=False)
 
@@ -418,16 +420,70 @@ def post_bangketquakinhdoanh_data(request):
         return JsonResponse({'message': 'Lỗi: Dữ liệu JSON không hợp lệ.'}, status=400)
     except Exception as e:
         return JsonResponse({'message': f'Đã xảy ra lỗi nghiêm trọng: {str(e)}'}, status=500)
+def post_TinTuc_data(request):
+    try:
+        # 1. Parse dữ liệu từ body request
+        data = json.loads(request.body)
+        
+        # Kiểm tra nếu data là dict (1 bài) thì chuyển thành list
+        if isinstance(data, dict):
+            data = [data]
+            
+        news_to_create = []
+        count_success = 0
+        
+        # 2. Duyệt qua từng bài viết
+        for item in data:
+            try:
+                # Lấy dữ liệu
+                title = item.get('title')
+                content = item.get('content')
+                link = item.get('link')
+                time_str = item.get('time_post')
+                summary = item.get('summary')
 
+                # Kiểm tra dữ liệu bắt buộc
+                if not title or not link or not time_str:
+                    continue
+
+                # Parse thời gian (ISO format: "2025-12-13T09:17:00")
+                time_post = parse_datetime(time_str)
+
+                # Tạo đối tượng (chưa lưu vào DB)
+                news_obj = TinTuc(
+                    title=title,
+                    content=content,
+                    link=link,
+                    time_post=time_post,
+                    summary=summary
+                )
+                news_to_create.append(news_obj)
+                
+            except Exception as e:
+                print(f"Lỗi khi xử lý bài viết {item.get('title', 'Unknown')}: {e}")
+                continue
+
+        # 3. Lưu hàng loạt vào Database (Tối ưu tốc độ)
+        if news_to_create:
+            # ignore_conflicts=True giúp bỏ qua lỗi nếu trùng lặp (nếu DB có ràng buộc unique)
+            TinTuc.objects.bulk_create(news_to_create, ignore_conflicts=True)
+            
+        return JsonResponse({
+            "message": f"Đã thêm thành công {len(news_to_create)} bài viết tin tức!"
+        }, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({"message": "Lỗi: File JSON không đúng định dạng."}, status=400)
+    except Exception as e:
+        return JsonResponse({"message": f"Lỗi Server: {str(e)}"}, status=500)
 
 
 # ==========================RETRIEVE QUERY METHOD===========================
-import time
-from django.db.models import Sum
+
 def retrieve_bangcandoikt(request):
     try:
         start_time = time.time()
-        print('hello', flush=True)
+        
         data = (
             BangCanDoiKeToan.objects
             .select_related('baoCao__congTy')  # nếu có quan hệ foreign key
@@ -447,7 +503,6 @@ def retrieve_bangcandoikt(request):
 
 
 # chatbot/views.py
-from django.views.decorators.http import require_POST
 
 @require_POST # Chỉ cho phép phương thức POST
 def save_message_view(request):
@@ -500,7 +555,6 @@ def save_message_view(request):
 
 
 # Đặt hàm này ở đầu file view của bạn hoặc trong một file utils.py
-from decimal import Decimal, InvalidOperation
 
 def safe_divide(numerator, denominator):
     """
@@ -527,12 +581,6 @@ def safe_divide(numerator, denominator):
 
 
 
-from django.http import JsonResponse
-from django.db.models import Max, Count, F, Q
-from .models import CongTy, TongHopTaiChinh, BangCanDoiKeToan, BangKetQuaKinhDoanh
-from decimal import Decimal, InvalidOperation # Import thêm
-# 1. IMPORT HÀM MỚI CỦA BẠN
-from .gemini_utils import update_financial_ratios_sheet
 
 
 # View API JSON cũ (được rút gọn)
@@ -544,7 +592,6 @@ def calculate_financial_ratios_view(request):
     # update_financial_ratios_sheet(data) # Uncomment nếu cần update Google Sheet
     return JsonResponse(data, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
 
-import threading
 
 # View API JSON cũ (được rút gọn)
 def update_google_sheet(request):
@@ -560,3 +607,10 @@ def update_google_sheet(request):
     thread.start()    
     
     return JsonResponse(data, safe=False, json_dumps_params={'indent': 2, 'ensure_ascii': False})
+
+
+
+
+
+
+#==========================AI ADVISOR SYSTEM===========================
