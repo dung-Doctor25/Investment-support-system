@@ -384,34 +384,45 @@ from .models import *
 from django.db.models import Q
 import datetime
 
-def get_formatted_news(symbol, date):
-    """
-    Lấy 5 tin tức chung mới nhất trong ngày (không lọc theo mã chứng khoán).
-    """
-    # Xác định khoảng thời gian từ 00:00 đến 23:59 của ngày đó
-    start_date = datetime.datetime.combine(date, datetime.time.min)
-    end_date = datetime.datetime.combine(date, datetime.time.max)
 
-    # Truy vấn: 
-    # 1. Lọc theo ngày (time_post nằm trong range)
-    # 2. Sắp xếp mới nhất lên đầu (-time_post)
-    # 3. Cắt lấy 5 tin đầu tiên ([:5])
+def get_formatted_news(symbol, date, lookback_days=7):
+    """
+    Lấy 5 tin tức liên quan đến công ty mới nhất trong vòng 'lookback_days' ngày.
+    Khắc phục tình trạng ngày hiện tại không có tin.
+    """
+    # 1. Xác định khung thời gian: Từ (Ngày hiện tại - 7 ngày) đến (Cuối ngày hiện tại)
+    end_date = datetime.datetime.combine(date, datetime.time.max)
+    start_date = datetime.datetime.combine(date - datetime.timedelta(days=lookback_days), datetime.time.min)
+
+    # 2. Tìm tên công ty để lọc tin (như bạn yêu cầu quay lại lọc theo công ty)
+    cty = CongTy.objects.filter(maChungKhoan=symbol).first()
+    company_name = cty.tenCongTy if cty else ""
+
+    # 3. Query DB
+    # - Lọc theo thời gian (7 ngày qua)
+    # - Lọc theo Từ khóa (Symbol hoặc Tên công ty)
+    # - Sắp xếp: Mới nhất lên đầu
+    # - Cắt: Lấy 5 tin
     news_list = TinTuc.objects.filter(
         time_post__range=(start_date, end_date)
     ).order_by('-time_post')[:5]
+    # ).filter(
+    #     Q(title__icontains=symbol) | 
+    #     Q(content__icontains=symbol) |
+    #     Q(title__icontains=company_name)  # Thêm lọc theo tên đầy đủ cho chắc
 
     if not news_list:
-        return "No news found for today."
+        return f"No specific news found for {symbol} in the last {lookback_days} days."
 
     text = ""
     for n in news_list:
-        # Format giờ phút
-        time_str = n.time_post.strftime('%H:%M') if n.time_post else "N/A"
+        # Format ngày giờ để Agent biết tin này cũ hay mới
+        # Quan trọng: Phải hiện ngày để Agent biết tin này là của hôm nay hay 3 ngày trước
+        time_str = n.time_post.strftime('%Y-%m-%d %H:%M') if n.time_post else "N/A"
         
-        # Ưu tiên lấy summary, nếu không có thì lấy 100 ký tự đầu của content
-        content_preview = n.summary if n.summary else (n.content[:100] + "..." if n.content else "")
+        # Lấy snippet
+        content_preview = n.summary if n.summary else (n.content[:150] + "..." if n.content else "")
         
-        # Dòng kết quả: [Giờ] Tiêu đề: Nội dung tóm tắt
         text += f"- [{time_str}] {n.title}: {content_preview}\n"
         
     return text

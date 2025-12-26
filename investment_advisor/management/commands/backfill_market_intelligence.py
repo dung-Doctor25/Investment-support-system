@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from ...models import CongTy, ThiTruongChungKhoang
-from ...gemeni_system import FinAgentMarketIntelligence
+from ...gemeni_system import FinAgentSystem
 from ...utils import get_formatted_news, get_formatted_financials, get_price_action
 import datetime
 import time
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         start_date = datetime.date(2025, 12, 1) 
         end_date = datetime.date(2025, 12, 3)
         
-        agent = FinAgentMarketIntelligence(api_key=api_key)
+        agent = FinAgentSystem(api_key=api_key)
 
         current_date = start_date
         

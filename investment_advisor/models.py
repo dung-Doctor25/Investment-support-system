@@ -1,6 +1,7 @@
 # your_app/models.py
 
 from django.db import models
+from django.utils import timezone
 
 # Bảng chứa thông tin định danh của các công ty
 class CongTy(models.Model):
@@ -279,3 +280,32 @@ class Message(models.Model):
     def __str__(self):
         # Hiển thị 50 ký tự đầu tiên của tin nhắn
         return f"{self.get_sender_display()}: {self.content[:50]}..."
+
+class TradingDecision(models.Model):
+    cong_ty = models.ForeignKey(CongTy, on_delete=models.CASCADE, related_name='trading_decisions')
+    date = models.DateField(default=timezone.now)
+    
+    # Context đầu vào (Snapshot lại trạng thái lúc ra quyết định)
+    account_cash = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    account_position = models.IntegerField(default=0)
+
+    # Output từ Gemini
+    analysis_log = models.TextField(verbose_name="Quá trình phân tích (Reasoning)")
+    
+    ACTION_CHOICES = [
+        ('BUY', 'MUA'),
+        ('SELL', 'BÁN'),
+        ('HOLD', 'GIỮ'),
+    ]
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    
+    final_reasoning = models.TextField(verbose_name="Lý do chốt hạ")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+        verbose_name = "4. Trading Decision"
+
+    def __str__(self):
+        return f"{self.action} - {self.cong_ty.maChungKhoan} - {self.date}"
