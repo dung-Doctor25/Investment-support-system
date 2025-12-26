@@ -5,3 +5,4 @@ crawl/backup/
 credentials.json
 .env
 data_backup_v2.sql
+chroma_db_storage/
